@@ -1,4 +1,4 @@
-# Seamonk
+# SeaMonk
 A gateway application which facilitates a simple->complex transaction incorporating a Smart Contract on the Cardano blockchain. SeaMonk makes it possible for a user to send an amount of ADA in a simple wallet-wallet transaction to a given address and interact with a given smart contract, without the need for the user to include any smart-contract-specific transaction details.
 
 SeaMonk can also be used without a smart contract with some minor adjustments, acting as an active gateway application to "watch for" specified amounts or sending addresses and performing tasks or creating transactions according to criteria. However it is developed with the incorporation of smart contracts in mind, as a way to allow for anyone with any Cardano wallet, to interact with arguably any Smart Contract, according to the criteria setup within SeaMonk and the Smart Contract.
