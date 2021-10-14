@@ -7,13 +7,10 @@ import hashlib
 import base64
 import requests
 
-# Cardano CLI global - Change according to your environment, eg "cardano-cli" if you have it in path
-# IMPORTANT:
-# If you are using mainnet, do a find/replace for all: '--testnet-magic', '1097911063'   and change to simply: '--mainnet'
-# Script Assumes CARDANO_NODE_SOCKET_PATH=/path/to/wherever/is/the/node.socket is set in your system path, if not do so before running
-# Lastly, be sure to update the api_url with the mainnet blockfrost endpoint including the trailing slash
-
+# Cardano CLI global
 cardano_cli = "cardano-cli"
+network = 'testnet-magic' # mainnet or testnet-magic
+magic = '1097911063' # leave blank if mainnet
 api_url = "https://cardano-testnet.blockfrost.io/api/v0/"
 
 def get_token_identifier(policy_id, token_name):
@@ -103,7 +100,7 @@ def get_smartcontract_addr(smartcontract_path):
         cardano_cli,
         'address',
         'build',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--payment-script-file',
         smartcontract_path
     ]
@@ -135,7 +132,7 @@ def log_new_txs(log, api_id, wallet_addr):
         cardano_cli,
         'query',
         'utxo',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--address',
         wallet_addr
     ])
@@ -291,7 +288,7 @@ def protocol(cache):
         cardano_cli,
         'query',
         'protocol-parameters',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--out-file',
         cache+'protocol.json'
     ]
@@ -303,7 +300,7 @@ def get_utxo(token_wallet, cache, file_name):
         cardano_cli,
         'query',
         'utxo',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--address',
         token_wallet,
         '--out-file',
@@ -378,7 +375,7 @@ def get_tip(cache):
         cardano_cli,
         'query',
         'tip',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--out-file',
         cache+'latest_tip.json'
     ]
@@ -397,7 +394,7 @@ def build_tx(log, cache, change_addr, until_tip, utxo_in, utxo_col, utxo_out, tx
         'build',
         '--alonzo-era',
         '--cardano-mode',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--protocol-params-file',
         cache+'protocol.json',
         '--change-address',
@@ -431,7 +428,7 @@ def sign_tx(log, cache, witnesses):
         'sign',
         '--tx-body-file',
         cache+'tx.draft',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--tx-file',
         cache+'tx.signed'
     ]
@@ -447,7 +444,7 @@ def submit_tx(log, cache):
         'transaction',
         'submit',
         '--cardano-mode',
-        '--testnet-magic', '1097911063',
+        '--' + network, magic,
         '--tx-file',
         cache+'tx.signed',
     ]
