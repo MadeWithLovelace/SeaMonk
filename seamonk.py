@@ -150,6 +150,10 @@ def setup(log, cache, reconfig=False):
     if reconfig:
         print('\nWARNING: Your current profile data is about to be overwritten! Exit now if you do not want to do that.\n\n')
     print("\nSetting up a new profile!\n\n*NOTE*\nThis will generate a profile.json file which is saved in your main app data folder.\n\n")
+    NETWORKINPUT = input("\nNetwork Type (simply enter either mainnet or testnet)\nNetwork:")
+    if NETWORKINPUT == 'testnet':
+        MAGICINPUT = input("\nTestnet Magic Number:")
+    CLI_PATH = input("\nPath to cardano-cli (or simply enter cardano-cli if it's set in your path)\nCardano-CLI Path:")
     API_ID = input("\nBlockfrost API ID:") # Blockfrost API ID
     WATCH_ADDR = input("\Watched Wallet Address:") # Wallet address of wallet to monitor for incoming payments
     COLLATSTRING = input("\nCollateral Lovelace Amount (usually 2000000)\nCollateral in Lovelace:") # Should be min of 2000000 lovelace in a separate UTxO in buyer's wallet
@@ -165,6 +169,11 @@ def setup(log, cache, reconfig=False):
     TOKEN_QTY = input("\nToken quantity amount to give in each swap out\nToken per-tx Amount:")
     RETURN_ADA = input("\nLovelace amount to return with the token transfer (cannot be below protocol limit)\nReturn Lovelace:")
     RECIPIENT_ADDR = input("\nSingle Recipient Wallet Address to expect payment from (only set this if no whitelist is being used)\nRecipient Addr:")
+    NETWORK = 'mainnet'
+    MAGIC = ''
+    if NETWORKINPUT == 'testnet':
+        NETWORK = 'testnet-magic'
+        MAGIC = MAGICINPUT
     COLLATERAL = int(COLLATSTRING)
     CHECK = False
     USE_WHITELIST = False
@@ -176,7 +185,7 @@ def setup(log, cache, reconfig=False):
     if WLONESTRING == 'True':
         WHITELIST_ONCE = True
 
-    rawSettings = {'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wluse':USE_WHITELIST,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'recipient':RECIPIENT_ADDR}
+    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wluse':USE_WHITELIST,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'recipient':RECIPIENT_ADDR}
 
     jsonSettings = json.dumps(rawSettings)
 

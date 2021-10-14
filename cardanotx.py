@@ -7,11 +7,25 @@ import hashlib
 import base64
 import requests
 
-# Cardano CLI global
-cardano_cli = "cardano-cli"
+# Defaults
 network = 'testnet-magic' # mainnet or testnet-magic
 magic = '1097911063' # leave blank if mainnet
-api_url = "https://cardano-testnet.blockfrost.io/api/v0/"
+cardano_cli = "cardano-cli"
+api_url = 'https://cardano-' + + '.blockfrost.io/api/v0/'
+
+#Load Settings
+approot = os.path.realpath(os.path.dirname(__file__))
+logname = 'seamonk-data'
+logpath = os.path.join(approot, logname)
+LOG = os.path.join(logpath, '')
+settings_file = LOG + 'profile.json'
+is_settings_file = os.path.isfile(settings_file)
+if is_settings_file:
+    s = json.load(open(settings_file, 'r'))
+    network = s['network']
+    magic = s['magic']
+    cardano_cli = s['cli_path']
+    api_url = 'https://cardano-' + s['network'] + '.blockfrost.io/api/v0/'
 
 def get_token_identifier(policy_id, token_name):
     """
