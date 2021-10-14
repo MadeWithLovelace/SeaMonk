@@ -11,7 +11,7 @@ import requests
 network = 'testnet-magic' # mainnet or testnet-magic
 magic = '1097911063' # leave blank if mainnet
 cardano_cli = "cardano-cli"
-api_url = 'https://cardano-' + + '.blockfrost.io/api/v0/'
+api_url = 'https://cardano-testnet.blockfrost.io/api/v0/'
 
 #Load Settings
 approot = os.path.realpath(os.path.dirname(__file__))
