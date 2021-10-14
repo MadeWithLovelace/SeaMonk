@@ -283,7 +283,7 @@ def clean_folder(cache):
     for f in files:
         remove(f)
 
-def protocol(cache):
+def proto(cache):
     func = [
         cardano_cli,
         'query',
