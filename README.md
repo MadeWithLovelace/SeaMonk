@@ -29,7 +29,7 @@ SeaMonk also accounts for change, if needed, back to the Smart Contract. For exa
 ### Prereq
 You'll need to have Cardano node and cli installed/synced on the server/system where you'll run SeaMonk. You'll also want your watched wallet to be on this same system, with its .skey and .vkey files accessible. The smartcontract you'll be using will also need to be on this system.
 
-For now SeaMonk has only been tested on Debian and Ubuntu, but should work flawlessly on any system where you can run Python. The file paths for settings config do need to be full paths, so if your wallet skey files are in a wallet folder in the same folder with SeaMonk, you'll still want to enter the full path to that skey file for example.
+For now SeaMonk has only been tested on Debian and Ubuntu, but should work flawlessly on any system where you can run Python. The file paths for settings config do need to be full paths, so if your wallet skey files are in a wallet folder in the same folder with SeaMonk, you'll still want to enter the full path to that skey file for example.  The whitelist needs to be in the same folder as seamonk.py, named simply whitelist.txt.
 
 Before you run or configure, you'll need to adjust the variables in the top of the cardanotx.py file, to match whether you are using mainnet or testnet and which blockfrost also, mainnet or testnet.
 
