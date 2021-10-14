@@ -44,3 +44,6 @@ SeaMonk also accounts for change, if needed, back to the Smart Contract. For exa
 
 ## A few dev notes
 SeaMonk is meant to work with a SmartContract but can be slightly altered to work with just wallets. It's a matter of minor edits to the lines of code where the tx-outs are being formatted and ordered. The order of those lines matters when dealing with SmartContracts. The transaction going out to the SmartContract must always be the final tx-out right before the Datum is called, otherwise it will not get the Datum and the transaction will be locked in the SmartContract forever.
+
+## Mentions
+I stumbled upon a really fantastic repository from [logicalmechanism](https://github.com/logicalmechanism/Token-Sale-Plutus-Contract) recently, which inspired me to develop SeaMonk and we adapted the version of our plutus smart contract we used from one of the smart contracts we found in that same repository. So a huge shout out to them!
