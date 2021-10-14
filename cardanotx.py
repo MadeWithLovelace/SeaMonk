@@ -25,7 +25,7 @@ if is_settings_file:
     network = s['network']
     magic = s['magic']
     cardano_cli = s['cli_path']
-    api_url = 'https://cardano-' + s['network'] + '.blockfrost.io/api/v0/'
+    api_url = 'https://cardano-' + s['blockfrost'] + '.blockfrost.io/api/v0/'
 
 def get_token_identifier(policy_id, token_name):
     """
