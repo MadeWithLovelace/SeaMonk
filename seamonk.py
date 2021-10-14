@@ -116,18 +116,18 @@ def start_deposit(log, cache, watch_addr, collateral):
 
     print("\n--- NOTE: Proceed Only If You Are Depositing Your NFT Into the NFT Swap Smart Contract ---\n")
     print("\n---       Be sure you have at least 1 UTxO in your wallet with 2 ADA for collateral before running this AND create one before running this app.   ---\n")
-    WATCH_SKEY_PATH = input("\nPath to Bridge Wallet (address set in vars) Signing Key File (eg /home/user/node/wallet/payment.skey) \n    Path to skey File:>")
-    WATCH_VKEY_PATH = input("\nPath to Bridge Wallet Verification Key File (eg /home/user/node/wallet/payment.vkey) \n    Path to vkey File:>")
+    WATCH_SKEY_PATH = input("\nPath to Watched Wallet (address set in vars) Signing Key File (eg /home/user/node/wallet/payment.skey) \n    Path to skey File:>")
+    WATCH_VKEY_PATH = input("\nPath to Watched Wallet Verification Key File (eg /home/user/node/wallet/payment.vkey) \n    Path to vkey File:>")
     WATCH_HASH = tx.get_address_pubkeyhash(WATCH_VKEY_PATH)
-    print("\n!!! Double Check That The PubKeyHash for Your Bridge Address Matches the Hash Within the SmartContract !!!\nPubKeyHash for Bridge Addr: "+str(WATCH_HASH)+"\n\n")
+    print("\n!!! Double Check That The PubKeyHash for Your Watched Address Matches the Hash Within the SmartContract !!!\nPubKeyHash for Watched Addr: "+str(WATCH_HASH)+"\n\n")
     SMARTCONTRACT_PATH = input("\nPath to the Smart Contract (eg /home/user/node/scripts/swapnft.plutus) \n    Path to SmartContract File:>")
     SMARTCONTRACT_ADDR = tx.get_smartcontract_addr(SMARTCONTRACT_PATH)
     TOKEN_POLICY_ID = input("\nPolicy ID of Native Token Being Deposited for Swap (eg 3cb979ba9d8d618acc88fb716e97782469f04727d5ba8b428a9a9258) \n    Native Token Policy ID:>")
     TOKEN_NAME = input("\nName/Ticker of NFT Being Deposited for Swap (eg CypherMonkZero) \n    Native Token Name:>")
     
     print("\n-----------------------------\n| Please Verify Your Input! |\n-----------------------------\n")
-    print("\nMy Bridge Wallet Address >> ",watch_addr)
-    print("\nMy Bridge Addresses skey File Path >> ",WATCH_SKEY_PATH)
+    print("\nMy Watched Wallet Address >> ",watch_addr)
+    print("\nMy Watched Addresses skey File Path >> ",WATCH_SKEY_PATH)
     print("\nSmartContract Address >> ",SMARTCONTRACT_ADDR)
     print("\nNative Token Policy ID >> ",TOKEN_POLICY_ID)
     print("\nNative Token Name >> ",TOKEN_NAME)
@@ -151,12 +151,12 @@ def setup(log, cache, reconfig=False):
         print('\nWARNING: Your current profile data is about to be overwritten! Exit now if you do not want to do that.\n\n')
     print("\nSetting up a new profile!\n\n*NOTE*\nThis will generate a profile.json file which is saved in your main app data folder.\n\n")
     API_ID = input("\nBlockfrost API ID:") # Blockfrost API ID
-    WATCH_ADDR = input("\nBridge Wallet Address:") # Wallet address of wallet to monitor for incoming payments
+    WATCH_ADDR = input("\Watched Wallet Address:") # Wallet address of wallet to monitor for incoming payments
     COLLATSTRING = input("\nCollateral Lovelace Amount (usually 2000000)\nCollateral in Lovelace:") # Should be min of 2000000 lovelace in a separate UTxO in buyer's wallet
     CHECKSTRING = input("\nCheck for Transactions Between Payment Processing (False is recommended & run another instance with get_transactions param set)\nType True or False:")
     WLUSESTRING = input("\nUse a Whitelist (Must have whitelist.txt in same folder as this app)\nType True or False:")
     WLONESTRING = input("\nRemove from Whitelist After 1 Payment is Received\nType True or False:")
-    WATCH_SKEY_PATH = input("\nBridge Wallet skey File Path (e.g. /home/user/wallets/watch.skey)\nBridge Wallet skey Path:")
+    WATCH_SKEY_PATH = input("\Watched Wallet skey File Path (e.g. /home/user/wallets/watch.skey)\Watched Wallet skey Path:")
     SMARTCONTRACT_PATH = input("\nSmartContract File Path (e.g. /home/user/smartcontracts/swap.plutus)\nSmartContract Path:")
     TOKEN_POLICY_ID = input("\nToken Policy ID (the long string before the dot)\nToken Policy ID:")
     TOKEN_NAME = input("\nToken Name (comes after the dot after the policy ID)\nToken Name:")
