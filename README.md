@@ -25,6 +25,26 @@ When you whitelist addresses, you can enter a single address from each users wal
 
 SeaMonk also accounts for change, if needed, back to the Smart Contract. For example, if you want to setup a simple swap contract, this can be accomplished and the settings can be dynamically changed via SeaMonk. Wherein you can set an amount of Native Tokens to be sent to the user/sender who engaged the app, and send the change back into the contract for the next user. This allows both the criteria to have more flexibility with a single contract, and for dynamically and automatically interacting with a smart contract in a more flexible way.
 
+## Running SeaMonk
+### Prereq
+You'll need to have Cardano node and cli installed/synced on the server/system where you'll run SeaMonk. You'll also want your watched wallet to be on this same system, with its .skey and .vkey files accessible. The smartcontract you'll be using will also need to be on this system.
+
+Before you run or configure, you'll need to adjust the variables in the top of the cardanotx.py file, to match whether you are using mainnet or testnet and which blockfrost also, mainnet or testnet.
+
+### First-run
+On first run, just simply `python3 seamonk.py`, SeaMonk will walk you through configuration and generate a profile.json file with your settings. To change these settings, you can run `python3 seamonk.py reconfigure`
+
+### Deposit
+After it's setup, you will need to fund the SmartContract. Running `python3 seamonk.py deposit` will walk you through this process.
+
+### Get Transactions
+It's possible to run SeaMonk and configure the "Check" option to true, to allow getting transactions in-line with monitoring and acting on transactions...but it's not recommended at this time, as it may end up missing some transactions it needs to record.  So it's recommended to run 2 instances of SeaMonk, the first is a very memory-lite instance that simply gets new transactions in "almost-real-time" about a 5 second window loop, until you kill it. To run this, you simply issue `python3 seamonk.py get_transactions` and it will watch for transactions and log them, ready to then be analyzed by the next instance of the main running app.
+
+### Main Running App
+The second instance is the main app, which matches new transactions to the whitelist or other criteria and when a payment is detected as a match, records them and performs the required SmartContract transaction(s). To run the main SeaMonk loop, issue `python3 seamonk.py` and it will loop until you kill it.
+
+For the last 2 instances which would both run simultaneously, you can run them in the background by putting `setsid` in front of the commands, for example: `setsid python3 seamonk.py` will start SeaMonk in the background. There's a run.log file generated each time you run which will capture most outputs and errors, but is still a WIP.
+
 ## Settings Available and What They Mean
 - Blockfrost API ID = This is the ID provided to you from Blockfrost.io which should match the network type (mainnet or testnet)
 - Watched Wallet Address = The address you are watching/expecting payment to.
