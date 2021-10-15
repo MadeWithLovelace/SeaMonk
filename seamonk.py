@@ -162,8 +162,8 @@ def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, watc
 
 def create_smartcontract(src, pubkeyhash, price):
     # Replace the validator options
-    template_src = src + 'template_SwapNFT.hs'
-    output_src = src + 'SwapNFT.hs'
+    template_src = src + 'src/' + 'template_SwapNFT.hs'
+    output_src = src + 'src/' + 'SwapNFT.hs'
     with open(template_src, 'r') as smartcontract :
         scdata = smartcontract.read()
         smartcontract.close()
