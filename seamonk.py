@@ -186,7 +186,7 @@ def create_smartcontract(src, pubkeyhash, price):
 def setup(log, cache, reconfig=False):
     if reconfig:
         print('\nWARNING: Your current profile data is about to be overwritten! Exit now if you do not want to do that.\n\n')
-    print("\nSetting up a new profile!\n\n*NOTE*\nThis will generate a profile.json file which is saved in your main app data folder.\n\n")
+    print("\nSetting up a new profile!\n\n*NOTE*\nThis will generate a profile.json file which is saved in your main app working folder.\n\n")
     NETWORKINPUT = input("\nNetwork Type (simply enter either mainnet or testnet)\nNetwork:")
     if NETWORKINPUT == 'testnet':
         MAGICINPUT = input("\nTestnet Magic Number:")
@@ -233,7 +233,7 @@ def setup(log, cache, reconfig=False):
 
     jsonSettings = json.dumps(rawSettings)
 
-    settings_file = log + 'profile.json'
+    settings_file = 'profile.json'
     is_set_file = os.path.isfile(settings_file)
     with open(settings_file, 'w') as runlog:
         runlog.write(jsonSettings)
@@ -274,7 +274,7 @@ if __name__ == "__main__":
         runlog.close()
     
     # Setup Settings Dictionary
-    settings_file = LOG + 'profile.json'
+    settings_file = 'profile.json'
     is_settings_file = os.path.isfile(settings_file)
     if not is_settings_file:
         try:
@@ -310,6 +310,13 @@ if __name__ == "__main__":
     RETURN_ADA = PROFILE['returnada']
     RECIPIENT_ADDR = PROFILE['recipient']
 
+    # Check for smartcontract file and prompt to create if not found
+    sc_file = SMARTCONTRACT_PATH
+    is_sc_file = os.path.isfile(sc_file)
+    if not is_sc_file:
+        create_smartcontract(SRC, WATCH_KEY_HASH, PRICE)
+
+    # Check for watched wallet signing key file
     if isfile(WATCH_SKEY_PATH) is False:
         print('The file:', WATCH_SKEY_PATH, 'could not be found.')
         exit(0)
