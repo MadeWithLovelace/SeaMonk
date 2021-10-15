@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 import datetime
 import json
@@ -6,7 +7,7 @@ import cardanotx as tx
 from sys import exit, argv
 from os.path import isdir, isfile
 
-def deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, ada_amt, datum_hash, collateral):
+def deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
     
@@ -22,10 +23,23 @@ def deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_p
     if flag is True:
         _, until_tip, block = tx.get_tip(cache)
         
+        # Calculate token quantity and any change
+        tok_bal = 0
+        sc_out = int(deposit_amt)
+        tok_new = 0
+        for token in tokens:
+            if token == 'lovelace':
+                continue
+            for t_qty in tokens[token]:
+                tok_bal = tokens[token][t_qty]
+                tok_new = tok_bal - sc_out
+
         # Setup UTxOs
-        tx_out = tx.process_tokens(cache, tokens, watch_addr, 'all', '2000000', [token_policy_id, token_name]) # Account for all except token to swap
+        tx_out = tx.process_tokens(cache, tokens, watch_addr, 'all', ada_amt, [token_policy_id, token_name]) # Account for all except token to swap
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # UTxO to replenish collateral
-        tx_out += tx.process_tokens(cache, tokens, smartcontract_addr, deposit_amt, '2000000', [token_policy_id, token_name], False) # Send just the token for swap to script TODO: Allow for user input to set amount of native tokens to add to sc, rather than all, which means creating a middle utxo for the change (last utxo must be the one to the smartcontract for datum)
+        if tok_new > 0:
+            tx_out += tx.process_tokens(cache, tokens, watch_addr, tok_new, ada_amt) # Account for deposited-token change (if any)
+        tx_out += tx.process_tokens(cache, tokens, smartcontract_addr, sc_out, sc_ada_amt, [token_policy_id, token_name], False) # Send just the token for swap
         print('\nTX Out Settings: ', tx_out)
         tx_data = [
             '--tx-out-datum-hash', datum_hash # This has to be the hash of the fingerprint of the token
@@ -84,11 +98,11 @@ def smartcontractswap(log, cache, watch_addr, watch_skey_path, smartcontract_add
             for t_qty in sc_tokens[token]:
                 sc_bal = sc_tokens[token][t_qty]
                 sc_new = sc_bal - sc_out
-        tx_out = tx.process_tokens(cache, sc_tokens, recipient_addr, sc_out, return_ada) # UTxO to Send NFT to the Buyer
-        tx_out += tx.process_tokens(cache, tokens, watch_addr) # Token change
-        tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # UTxO to replenish collateral
+        tx_out = tx.process_tokens(cache, sc_tokens, recipient_addr, sc_out, return_ada) # UTxO to Send Token(s) to the Buyer
+        tx_out += tx.process_tokens(cache, tokens, watch_addr) # Change
+        tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Replenish collateral
         if price:
-            tx_out += ['--tx-out', watch_addr + '+' + str(price)] # UTxO for price if it's set to process price payment
+            tx_out += ['--tx-out', watch_addr + '+' + str(price)] # UTxO for price if set to process price payment
         if sc_new > 0:
             tx_out += tx.process_tokens(cache, sc_tokens, smartcontract_addr, sc_new) # UTxO to Send Change to Script - MUST BE LAST UTXO FOR DATUM
         tx_data = [
@@ -138,12 +152,37 @@ def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, smar
         exit(0)
     
     deposit_amt = input("\nHow many " + token_name + " tokens are you depositing?\nDeposit Amount:")
+    sc_ada_amt = input("\nHow many lovelace to include with token(s) at SmartContract UTxO? (must be at least protocol minimum for token(s))\nLovelace Amount SmartContract:")
+    ada_amt = input("\nHow many lovelace to include with token(s) at watched address UTxO(s)? (must be at least protocol minimum for token(s))\nLovelace Amount Wallet:")
 
     # Calculate the "fingerprint"
     FINGERPRINT = tx.get_token_identifier(token_policy_id, token_name) # Not real fingerprint but works
     DATUM_HASH  = tx.get_hash_value('"{}"'.format(FINGERPRINT)).replace('\n', '')
     #print('Datum Hash: ', DATUM_HASH)
-    deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, DATUM_HASH, collateral)
+    deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, collateral)
+
+def create_smartcontract(src):
+    # Replace the validator options
+    template_src = src + 'template_SwapNFT.hs'
+    output_src = src + 'SwapNFT.hs'
+    with open(template_src, 'r') as smartcontract :
+        scdata = smartcontract.read()
+        smartcontract.close()
+    scdata = scdata.replace(str(), 'PUBKEY_HASH010101010101010101010101010101010101010101010')
+    scdata = scdata.replace(int(), '00000000000000')
+    with open(output_src, 'w') as smartcontract:
+        smartcontract.write(scdata)
+        smartcontract.close()
+    
+    # Compile the plutus smartcontract
+    data = subprocess.Popen(['cabal', 'build'], stdout = subprocess.PIPE)
+    output = data.communicate()
+    print("output: ",output)
+    data = subprocess.Popen(['cabal', 'run'], stdout = subprocess.PIPE)
+    output = data.communicate()
+
+    # Move the plutus file to the working directory
+    os.replace(src + 'swaptoken.plutus', 'swaptoken.plutus')
 
 def setup(log, cache, reconfig=False):
     if reconfig:
@@ -161,7 +200,7 @@ def setup(log, cache, reconfig=False):
     WLONESTRING = input("\nRemove from Whitelist After 1 Payment is Received\nType True or False:")
     WATCH_SKEY_PATH = input("\nWatched Wallet skey File Path (e.g. /home/user/wallets/watch.skey)\nWatched Wallet skey Path:")
     WATCH_VKEY_PATH = input("\nPath to Watched Wallet Verification Key File (eg /home/user/node/wallet/payment.vkey)\nPath to vkey File:>")
-    SMARTCONTRACT_PATH = input("\nSmartContract File Path (e.g. /home/user/smartcontracts/swap.plutus)\nSmartContract Path:")
+    SMARTCONTRACT_PATH = input("\nSmartContract File Path (e.g. /home/user/smartcontracts/swap.plutus OR leave blank to use the built-in simple token swap contract)\nSmartContract Path:")
     TOKEN_POLICY_ID = input("\nToken Policy ID (the long string before the dot)\nToken Policy ID:")
     TOKEN_NAME = input("\nToken Name (comes after the dot after the policy ID)\nToken Name:")
     EXPECT_ADA = input("\nLovelace amount to expect and watch for\nLovelace Amount:")
@@ -204,7 +243,8 @@ def setup(log, cache, reconfig=False):
 if __name__ == "__main__":
     # Setup Temp Directory (try to)
     scptroot = os.path.realpath(os.path.dirname(__file__))
-    logname = 'seamonk-data'
+    SRC = os.path.join(os.path.join(scptroot, 'smartcontract-src'), '')
+    logname = 'logs'
     logpath = os.path.join(scptroot, logname)
     LOG = os.path.join(logpath, '')
     cachename = 'cache'
@@ -245,6 +285,8 @@ if __name__ == "__main__":
         INPUT = argv[1]
         if INPUT == 'reconfigure':
             setup(LOG, CACHE, True)
+        if INPUT == 'create_smartcontract':
+            create_smartcontract(SRC)
 
     # Load settings
     PROFILE = json.load(open(settings_file, 'r'))
