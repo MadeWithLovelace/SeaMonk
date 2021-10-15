@@ -125,18 +125,17 @@ def smartcontractswap(log, cache, watch_addr, watch_skey_path, smartcontract_add
             runlog.close()
         exit(0)
 
-def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, smartcontract_path, token_policy_id, token_name, collateral):
+def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
 
-    watch_hash = tx.get_address_pubkeyhash(watch_vkey_path)
     smartcontract_addr = tx.get_smartcontract_addr(smartcontract_path)
 
     print("\n--- NOTE: Proceed Only If You Are Depositing Your NFT or Tokens Into the NFT/Token Swap Smart Contract ---\n")
     print("\n---       Be sure you have at least 1 UTxO in your wallet with 2 ADA for collateral before running this.   ---\n")
     print("\n-----------------------------\n| Please Verify Your Input! |\n-----------------------------\n")
     print("\nMy Watched Wallet Address >> ",watch_addr)
-    print("\nMy Address PubKey Hash (for smartcontract validation) >> ",str(watch_hash))
+    print("\nMy Address PubKey Hash (for smartcontract validation) >> ",str(watch_key_hash))
     print("\nMy Watched Addresses skey File Path >> ",watch_skey_path)
     print("\nSmartContract Address >> ",smartcontract_addr)
     print("\nNative Token Policy ID >> ",token_policy_id)
@@ -161,15 +160,15 @@ def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, smar
     #print('Datum Hash: ', DATUM_HASH)
     deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, collateral)
 
-def create_smartcontract(src):
+def create_smartcontract(src, pubkeyhash, price):
     # Replace the validator options
     template_src = src + 'template_SwapNFT.hs'
     output_src = src + 'SwapNFT.hs'
     with open(template_src, 'r') as smartcontract :
         scdata = smartcontract.read()
         smartcontract.close()
-    scdata = scdata.replace(str(), 'PUBKEY_HASH010101010101010101010101010101010101010101010')
-    scdata = scdata.replace(int(), '00000000000000')
+    scdata = scdata.replace(str(pubkeyhash), 'PUBKEY_HASH010101010101010101010101010101010101010101010')
+    scdata = scdata.replace(int(price), '00000000000000')
     with open(output_src, 'w') as smartcontract:
         smartcontract.write(scdata)
         smartcontract.close()
@@ -200,7 +199,11 @@ def setup(log, cache, reconfig=False):
     WLONESTRING = input("\nRemove from Whitelist After 1 Payment is Received\nType True or False:")
     WATCH_SKEY_PATH = input("\nWatched Wallet skey File Path (e.g. /home/user/wallets/watch.skey)\nWatched Wallet skey Path:")
     WATCH_VKEY_PATH = input("\nPath to Watched Wallet Verification Key File (eg /home/user/node/wallet/payment.vkey)\nPath to vkey File:>")
+    WATCH_KEY_HASH = tx.get_address_pubkeyhash(WATCH_VKEY_PATH)
     SMARTCONTRACT_PATH = input("\nSmartContract File Path (e.g. /home/user/smartcontracts/swap.plutus OR leave blank to use the built-in simple token swap contract)\nSmartContract Path:")
+    if len(SMARTCONTRACT_PATH) == 0:
+        approot = os.path.realpath(os.path.dirname(__file__))
+        SMARTCONTRACT_PATH = os.path.join(approot, 'swaptoken.plutus')
     TOKEN_POLICY_ID = input("\nToken Policy ID (the long string before the dot)\nToken Policy ID:")
     TOKEN_NAME = input("\nToken Name (comes after the dot after the policy ID)\nToken Name:")
     EXPECT_ADA = input("\nLovelace amount to expect and watch for\nLovelace Amount:")
@@ -226,7 +229,7 @@ def setup(log, cache, reconfig=False):
     if WLONESTRING == 'True':
         WHITELIST_ONCE = True
 
-    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'blockfrost':BLOCKFROST,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wluse':USE_WHITELIST,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'recipient':RECIPIENT_ADDR}
+    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'blockfrost':BLOCKFROST,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wluse':USE_WHITELIST,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'recipient':RECIPIENT_ADDR}
 
     jsonSettings = json.dumps(rawSettings)
 
@@ -285,8 +288,6 @@ if __name__ == "__main__":
         INPUT = argv[1]
         if INPUT == 'reconfigure':
             setup(LOG, CACHE, True)
-        if INPUT == 'create_smartcontract':
-            create_smartcontract(SRC)
 
     # Load settings
     PROFILE = json.load(open(settings_file, 'r'))
@@ -299,6 +300,7 @@ if __name__ == "__main__":
     WHITELIST_ONCE = PROFILE['wlone']
     WATCH_SKEY_PATH = PROFILE['watchskey']
     WATCH_VKEY_PATH = PROFILE['watchvkey']
+    WATCH_KEY_HASH = PROFILE['watchkeyhash']
     SMARTCONTRACT_PATH = PROFILE['scpath']
     TOKEN_POLICY_ID = PROFILE['tokenid']
     TOKEN_NAME = PROFILE['tokenname']
@@ -314,12 +316,17 @@ if __name__ == "__main__":
 
     if len(argv) > 1 and len(API_ID) > 1 and len(WATCH_ADDR) > 1:
         INPUT = argv[1]
+
+        if INPUT == 'create_smartcontract':
+            create_smartcontract(SRC, WATCH_KEY_HASH, PRICE)
+
         if INPUT == 'get_transactions':
             while True:
                 result_tx = tx.log_new_txs(LOG, API_ID, WATCH_ADDR)
                 time.sleep(5)
+
         if INPUT == 'deposit':
-            start_deposit(LOG, CACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, COLLATERAL)
+            start_deposit(LOG, CACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, COLLATERAL)
 
     # Calculate the "fingerprint" and finalize other variables
     FINGERPRINT = tx.get_token_identifier(TOKEN_POLICY_ID, TOKEN_NAME)
