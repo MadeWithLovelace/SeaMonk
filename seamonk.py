@@ -6,7 +6,7 @@ import cardanotx as tx
 from sys import exit, argv
 from os.path import isdir, isfile
 
-def deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, datum_hash, collateral):
+def deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, ada_amt, datum_hash, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
     
@@ -25,7 +25,7 @@ def deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_p
         # Setup UTxOs
         tx_out = tx.process_tokens(cache, tokens, watch_addr, 'all', '2000000', [token_policy_id, token_name]) # Account for all except token to swap
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # UTxO to replenish collateral
-        tx_out += tx.process_tokens(cache, tokens, smartcontract_addr, 'all', '2000000', [token_policy_id, token_name], False) # Send just the token for swap to script TODO: Allow for user input to set amount of native tokens to add to sc, rather than all, which means creating a middle utxo for the change (last utxo must be the one to the smartcontract for datum)
+        tx_out += tx.process_tokens(cache, tokens, smartcontract_addr, deposit_amt, '2000000', [token_policy_id, token_name], False) # Send just the token for swap to script TODO: Allow for user input to set amount of native tokens to add to sc, rather than all, which means creating a middle utxo for the change (last utxo must be the one to the smartcontract for datum)
         print('\nTX Out Settings: ', tx_out)
         tx_data = [
             '--tx-out-datum-hash', datum_hash # This has to be the hash of the fingerprint of the token
@@ -128,6 +128,7 @@ def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, smar
     print("\nNative Token Policy ID >> ",token_policy_id)
     print("\nNative Token Name >> ",token_name)
     
+    
     verify = input("\n\nIs the information above correct AND you have a 2 ADA UTxO for Collateral? (yes or no): ")
     
     if verify == ("yes"):
@@ -136,11 +137,13 @@ def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, smar
         print("\n\nQuitting, please run again to try again!\n\n")
         exit(0)
     
+    deposit_amt = input("\nHow many " + token_name + " tokens are you depositing?\nDeposit Amount:")
+
     # Calculate the "fingerprint"
     FINGERPRINT = tx.get_token_identifier(token_policy_id, token_name) # Not real fingerprint but works
     DATUM_HASH  = tx.get_hash_value('"{}"'.format(FINGERPRINT)).replace('\n', '')
     #print('Datum Hash: ', DATUM_HASH)
-    deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, DATUM_HASH, collateral)
+    deposit(log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, DATUM_HASH, collateral)
 
 def setup(log, cache, reconfig=False):
     if reconfig:
@@ -151,7 +154,7 @@ def setup(log, cache, reconfig=False):
         MAGICINPUT = input("\nTestnet Magic Number:")
     CLI_PATH = input("\nPath to cardano-cli (or simply enter cardano-cli if it's set in your path)\nCardano-CLI Path:")
     API_ID = input("\nBlockfrost API ID:") # Blockfrost API ID
-    WATCH_ADDR = input("\Watched Wallet Address:") # Wallet address of wallet to monitor for incoming payments
+    WATCH_ADDR = input("\nWatched Wallet Address:") # Wallet address of wallet to monitor for incoming payments
     COLLATSTRING = input("\nCollateral Lovelace Amount (usually 2000000)\nCollateral in Lovelace:") # Should be min of 2000000 lovelace in a separate UTxO in buyer's wallet
     CHECKSTRING = input("\nCheck for Transactions Between Payment Processing (False is recommended & run another instance with get_transactions param set)\nType True or False:")
     WLUSESTRING = input("\nUse a Whitelist (Must have whitelist.txt in same folder as this app)\nType True or False:")
