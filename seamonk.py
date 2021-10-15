@@ -174,6 +174,7 @@ def create_smartcontract(src, pubkeyhash, price):
         smartcontract.close()
     
     # Compile the plutus smartcontract
+    approot = os.path.realpath(os.path.dirname(__file__))
     os.chdir(src)
     print("\nPlease wait while your Plutus SmartContract is being compiled, this may take a few minutes . . .\n\n")
     time.sleep(5)
@@ -183,7 +184,9 @@ def create_smartcontract(src, pubkeyhash, price):
     print("\nCheck the above output for any errors.")
 
     # Move the plutus file to the working directory
+    os.chdir(approot)
     os.replace(src + 'swaptoken.plutus', 'swaptoken.plutus')
+    exit(0)
 
 def setup(log, cache, reconfig=False):
     if reconfig:
