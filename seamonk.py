@@ -162,23 +162,25 @@ def start_deposit(log, cache, watch_addr, watch_skey_path, watch_vkey_path, watc
 
 def create_smartcontract(src, pubkeyhash, price):
     # Replace the validator options
-    template_src = src + 'src/' + 'template_SwapNFT.hs'
-    output_src = src + 'src/' + 'SwapNFT.hs'
+    template_src = src + 'src/' + 'template_SwapToken.hs'
+    output_src = src + 'src/' + 'SwapToken.hs'
     with open(template_src, 'r') as smartcontract :
         scdata = smartcontract.read()
         smartcontract.close()
-    scdata = scdata.replace(str(pubkeyhash), 'PUBKEY_HASH010101010101010101010101010101010101010101010')
-    scdata = scdata.replace(int(price), '00000000000000')
+    scdata = scdata.replace('PUBKEY_HASH010101010101010101010101010101010101010101010', ' '.join(pubkeyhash.split()))
+    scdata = scdata.replace('PRICE_00000000000000', ' '.join(price.split()))
     with open(output_src, 'w') as smartcontract:
         smartcontract.write(scdata)
         smartcontract.close()
     
     # Compile the plutus smartcontract
-    data = subprocess.Popen(['cabal', 'build'], stdout = subprocess.PIPE)
-    output = data.communicate()
-    print("output: ",output)
-    data = subprocess.Popen(['cabal', 'run'], stdout = subprocess.PIPE)
-    output = data.communicate()
+    os.chdir(src)
+    print("\nPlease wait while your Plutus SmartContract is being compiled, this may take a few minutes . . .\n\n")
+    time.sleep(5)
+    data_build = subprocess.call(['cabal', 'build'], stdout = subprocess.PIPE)
+    print("\nGenerating swaptoken.plutus . . .")
+    data_run = subprocess.call(['cabal', 'run'], stdout = subprocess.PIPE)
+    print("\nCheck the above output for any errors.")
 
     # Move the plutus file to the working directory
     os.replace(src + 'swaptoken.plutus', 'swaptoken.plutus')
