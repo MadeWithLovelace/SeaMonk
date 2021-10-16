@@ -4,6 +4,7 @@ import time
 import datetime
 import json
 import cardanotx as tx
+import getopt
 from sys import exit, argv
 from os.path import isdir, isfile
 
@@ -298,6 +299,21 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
 
 
 if __name__ == "__main__":
+    # Get user options
+    arguments = argv[1:]
+    shortopts= "svo"
+    longopts = ["profile=","option="]
+
+    # Setting behaviour for options
+    PROFILE_PASSED = ''
+    OPTION_PASSED = ''
+    options, args = getopt.getopt(arguments, shortopts,longopts)
+    for opt, val in options: 
+        if opt in ("-p", "--profile"):
+            PROFILE_PASSED = str(val)
+        elif opt in ("-o", "--option"):
+            OPTION_PASSED = str(val)
+
     # Setup Temp Directory (try to)
     scptroot = os.path.realpath(os.path.dirname(__file__))
     SRC = os.path.join(os.path.join(scptroot, 'smartcontract-src'), '')
@@ -319,10 +335,9 @@ if __name__ == "__main__":
     
     # Get any set profile name
     PROFILE_NAME = ''
-    if len(argv) > 1:
-        INPUT = argv[1]
-        if INPUT.startswith('profile='):
-            PROFILE_NAME = INPUT[8:]
+    
+    if len(PROFILE_PASSED) > 0:
+        PROFILE_NAME = PROFILE_PASSED
 
     # Load settings
     load_profile = json.load(open(settings_file, 'r'))
@@ -346,10 +361,10 @@ if __name__ == "__main__":
     RETURN_ADA = PROFILE['returnada']
 
     # Input before settings load
-    if len(argv) > 1:
-        if argv[1] == 'reconfigure':
+    if len(OPTION_PASSED) > 0:
+        if OPTION_PASSED == 'reconfigure':
             setup(LOGROOT, PROFILE_NAME, True)
-        if argv[1] == 'new_profile':
+        if OPTION_PASSED == 'new_profile':
             setup(LOGROOT, PROFILE_NAME, False, True)
 
     # Instantiate log and cache folders for profile
@@ -380,18 +395,16 @@ if __name__ == "__main__":
         print('The file:', WATCH_SKEY_PATH, 'could not be found.')
         exit(0)
 
-    if len(argv) > 1 and len(API_ID) > 1 and len(WATCH_ADDR) > 1:
-        INPUT = argv[1]
-
-        if INPUT == 'create_smartcontract':
+    if len(OPTION_PASSED) > 1 and len(API_ID) > 1 and len(WATCH_ADDR) > 1:
+        if OPTION_PASSED == 'create_smartcontract':
             create_smartcontract(PROFILE_NAME, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
 
-        if INPUT == 'get_transactions':
+        if OPTION_PASSED == 'get_transactions':
             while True:
                 result_tx = tx.log_new_txs(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR)
                 time.sleep(5)
 
-        if INPUT == 'deposit':
+        if OPTION_PASSED == 'deposit':
             start_deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, COLLATERAL)
 
     # Calculate the "fingerprint" and finalize other variables
