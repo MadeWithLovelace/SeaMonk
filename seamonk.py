@@ -188,7 +188,7 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     os.remove(output_src)
     os.replace(src + 'swaptoken.plutus', sc_path)
     sc_addr = tx.get_smartcontract_addr(profile_name, sc_path)
-    print('\n================ Finished! ================\n > Your SmartContract Address Is: ' + sc_addr + '\n\n')
+    print('\n================ Finished! ================\n > Your SmartContract Address For Your Records Is: ' + sc_addr + '\n\n')
     exit(0)
 
 def setup(logroot, profile_name='', reconfig=False, append=False):
@@ -200,7 +200,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     print('If this is the first time running the setup a profile.json file will be')
     print('created within this working directory. If this is a new profile addition,')
     print('it will be added to the json of the profile.json file and should be called')
-    print('with the profile option like so: `python3 seamonk.py profile=MyProfileName`')
+    print('with the profile option like so: `python3 seamonk.py --profile MyProfileName`')
     print('where MyProfileName is the name you give this profile.')
     print('\nFor new profiles, this will also generate a whitelist.txt file within the')
     print('profiles directory, under the directory named after this profile,')
@@ -294,7 +294,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         except OSError:
             pass
 
-    print('\n\n=========================     Profile Saved      =========================\nIf using more than 1 profile, run with this explicit profile with option\n"profile=' + UNIQUE_NAME + '" e.g. `python3 seamonk.py profile=' + UNIQUE_NAME + '`.\n\nExiting . . . \n')
+    print('\n\n=========================     Profile Saved      =========================\nIf using more than 1 profile, run with this explicit profile with option\n"--profile ' + UNIQUE_NAME + '" e.g. `python3 seamonk.py --profile ' + UNIQUE_NAME + '`.\n\nExiting . . . \n')
     exit(0)
 
 
@@ -442,11 +442,11 @@ if __name__ == "__main__":
         time.sleep(10)
         result = 'none'
 
-        whitelist_file = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'whitelist.txt')
+        whitelist_file = PROFILELOG + 'whitelist.txt'
         is_whitelist_file = os.path.isfile(whitelist_file)
         if not is_whitelist_file:
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Missing expected file: whitelist_nft.txt in this same folder!\n')
+                runlog.write('Missing expected file: whitelist.txt in your profile folder\n')
                 runlog.close()
             exit(0)
         whitelist_r = open(whitelist_file, 'r')

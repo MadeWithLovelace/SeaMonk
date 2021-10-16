@@ -245,18 +245,18 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, sender
                 continue
             if flag == 0:
                 if len(sender_addr) == 103:
-                    trimsender = sender_addr[52:-6]
-                    trimtx = tx_addr[52:-6]
+                    sender_addr = sender_addr[52:-6]
+                    tx_addr = tx_addr[52:-6]
                     with open(runlog_file, 'a') as runlog:
-                        runlog.write('\n--- Long Address Detected, Trimming: ---\n' + trimsender + ' | ' + trimtx + '\n-----------------------------------\n')
+                        runlog.write('\n--- Long Address Detected, Trimming: ---\n' + sender_addr + ' | ' + tx_addr + '\n-----------------------------------\n')
                         runlog.close()
                 if compare_addr == True and compare_amnt == True:
-                    if trimtx == trimsender and int(tx_amnt) == int(amount):
+                    if tx_addr == sender_addr and int(tx_amnt) == int(amount):
                         record_as_payment = True
                     else:
                         record_as_payment = False
                 elif compare_addr == True:
-                    if trimtx == trimsender:
+                    if tx_addr == sender_addr:
                         record_as_payment = True
                     else:
                         record_as_payment = False
