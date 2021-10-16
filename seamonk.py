@@ -187,7 +187,7 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     os.remove(output_src)
     os.replace(src + 'swaptoken.plutus', sc_path)
     sc_addr = tx.get_smartcontract_addr(profile_name, sc_path)
-    print('\n================ Finished! ================\n > Your SmartContract Address Is: ' + sc_addr)
+    print('\n================ Finished! ================\n > Your SmartContract Address Is: ' + sc_addr + '\n\n')
     exit(0)
 
 def setup(logroot, profile_name='', reconfig=False, append=False):
