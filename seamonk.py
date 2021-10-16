@@ -184,6 +184,7 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     print("\nCheck the above output for any errors.")
 
     # Move the plutus file to the working directory
+    os.remove(output_src)
     os.replace(src + 'swaptoken.plutus', sc_path)
     sc_addr = get_smartcontract_addr(profile_name, sc_path)
     print('\n================ Finished! ================\n > Your SmartContract Address Is: ' + sc_addr)
