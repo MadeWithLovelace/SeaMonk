@@ -136,6 +136,7 @@ def log_new_txs(profile_name, log, api_id, wallet_addr):
         '--address',
         wallet_addr
     ])
+    print('\nRaw utxo: ',rawUtxoTable)
     # Output rows
     utxoTableRows = rawUtxoTable.strip().splitlines()
     # Foreach row compare against each line of tx file
@@ -158,8 +159,10 @@ def log_new_txs(profile_name, log, api_id, wallet_addr):
             with open(txlog_file, 'a') as txlog_a:
                 # Get curl data from blockfrost on new tx's only
                 headers = {'project_id': api_id}
-                cmd = 'txs/'+tx_hash+'/utxos'
-                tx_result = requests.get(s[profile_name]['api_uri']+cmd, headers=headers)
+                cmd = s[profile_name]['api_uri'] + 'txs/' + tx_hash + '/utxos'
+                print('\nCommand: ',cmd)
+                tx_result = requests.get(cmd, headers=headers)
+                print('\nRequest result: ',tx_result)
                 
                 # Check if hash found at api
                 if 'status_code' in tx_result.json():
@@ -188,12 +191,14 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
     runlog_file = log + 'run.log'
 
     # Setup file
+    amount = int(amount)
+    min_watch = int(min_watch)
     compare_addr = True
     compare_amnt = True
     record_as_payment = False
     if sender_addr == 'none':
         compare_addr = False
-    if int(amount) == 0 and int(min_watch) == 0:
+    if amount == 0 and min_watch == 0:
         compare_amnt = False
     return_data = ''
     payments_file = log + 'payments.log'
@@ -252,9 +257,9 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
                         runlog.close()
                 if compare_addr == True and compare_amnt == True:
                     if tx_addr == sender_addr:
-                        if int(min_watch) > 0:
+                        if min_watch > 0 and tx_amnt >= min_watch:
                             record_as_payment = True
-                        elif int(tx_amnt) == int(amount):
+                        elif tx_amnt == amount:
                             record_as_payment = True
                         else:
                             record_as_payment = False
@@ -264,9 +269,9 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
                     else:
                         record_as_payment = False
                 elif compare_amnt == True:
-                    if int(min_watch) > 0:
+                    if min_watch > 0 and tx_amnt >= min_watch:
                         record_as_payment = True
-                    elif tx_amnt == int(amount):
+                    elif tx_amnt == amount:
                         record_as_payment = True
                     else:
                         record_as_payment = False
@@ -318,7 +323,7 @@ def get_txin(log, cache, file_name, collateral, spendable=False, allowed_datum='
     # Begin log file
     runlog_file = log + 'run.log'
     if check_amnt > 0:
-        check_amnt = int(check_amnt) + int(collateral) + 1000000
+        check_amnt = int(check_amnt)
     check_price_found = False
     utxo_ada_sum = 0
     txin_list = []

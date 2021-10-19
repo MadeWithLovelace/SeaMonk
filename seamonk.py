@@ -22,7 +22,10 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
 
     # Check for price amount in watched wallet
     if check_price > 0:
-        is_price_utxo = tx.get_txin(log, cache, 'utxo.json', check_price, False, '', True)
+        fee_buffer = 1000000
+        check_price = int(check_price) + int(sc_ada_amt) + int(ada_amt) + int(collateral) + fee_buffer
+        print('\nCheck Price now: ', check_price)
+        is_price_utxo = tx.get_txin(log, cache, 'utxo.json', collateral, False, '', int(check_price))
         if not is_price_utxo:
             print("\nNot enough ADA in your wallet to cover Price and Collateral. Add some funds and try again.\n")
             exit(0)
@@ -285,7 +288,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         SMARTCONTRACT_PATH = log + UNIQUE_NAME + '.plutus'
     NETWORK = 'mainnet'
     MAGIC = ''
-    API_URI = 'https://cardano-' + NETWORK + '.blockfrost.io/api/v0/'
+    API_URI = 'https://cardano-' + NETWORKINPUT + '.blockfrost.io/api/v0/'
     if NETWORKINPUT == 'testnet':
         NETWORK = 'testnet-magic'
         MAGIC = MAGICINPUT
@@ -440,13 +443,16 @@ if __name__ == "__main__":
 
         if OPTION_PASSED == 'get_transactions':
             while True:
+                print('\nChecking: '+PROFILE_NAME+' | '+PROFILELOG+' | '+API_ID+' | '+WATCH_ADDR)
                 result_tx = tx.log_new_txs(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR)
+                print('\nResult: ', result_tx)
                 time.sleep(5)
 
         if OPTION_PASSED == 'deposit':
             CHECK_PRICE = 0
             if EXPECT_ADA != PRICE:
                 CHECK_PRICE = int(PRICE)
+                print('\nTo check if price amount in wallet: ' + str(CHECK_PRICE))
             start_deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL)
 
     # Calculate the "fingerprint" and finalize other variables
@@ -509,7 +515,8 @@ if __name__ == "__main__":
             RESLIST = result.split(',')
             ADA_RECVD = int(RESLIST[2])
             if MIN_WATCH > 0:
-                TOKEN_QTY = str(round((int(TOKEN_QTY) * ADA_RECVD) / 1000000))
+                ADA_TOSWAP = ADA_RECVD - int(RETURN_ADA)
+                TOKEN_QTY = str(round((int(TOKEN_QTY) * ADA_TOSWAP) / 1000000))
             with open(runlog_file, 'a') as runlog:
                 runlog.write('Running whitelist for addr: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+'\n')
                 runlog.close()
