@@ -254,11 +254,10 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         SMARTCONTRACT_PATH = log + UNIQUE_NAME + '.plutus'
     NETWORK = 'mainnet'
     MAGIC = ''
-    API_URI = 'https://cardano-mainnet.blockfrost.io/api/v0/'
+    API_URI = 'https://cardano-' + NETWORK + '.blockfrost.io/api/v0/'
     if NETWORKINPUT == 'testnet':
         NETWORK = 'testnet-magic'
         MAGIC = MAGICINPUT
-        API_URI = 'https://cardano-testnet.blockfrost.io/api/v0/'
     COLLATERAL = int(COLLATSTRING)
     MIN_WATCH = int(MININPUT)
     CHECK = False
@@ -472,12 +471,10 @@ if __name__ == "__main__":
                     runlog.write('No new payments detected:\n')
                     runlog.close()
                 continue
-                
             RESLIST = result.split(',')
             ADA_RECVD = int(RESLIST[2])
             if MIN_WATCH > 0:
-                TOKEN_QTY = str(int(TOKEN_QTY) * ADA_RECVD)
-
+                TOKEN_QTY = str(round((int(TOKEN_QTY) * ADA_RECVD) / 1000000))
             with open(runlog_file, 'a') as runlog:
                 runlog.write('Running whitelist for addr: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+'\n')
                 runlog.close()
