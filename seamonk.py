@@ -8,7 +8,7 @@ import getopt
 from sys import exit, argv
 from os.path import isdir, isfile
 
-def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, collateral):
+def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
     
@@ -19,6 +19,37 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
     
     # Get wallet utxos
     utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(log, cache, 'utxo.json', collateral)
+
+    # Check for price amount in watched wallet
+    if check_price > 0:
+        is_price_utxo = tx.get_txin(log, cache, 'utxo.json', check_price, False, '', True)
+        if not is_price_utxo:
+            print("\nNot enough ADA in your wallet to cover Price and Collateral. Add some funds and try again.\n")
+            exit(0)
+
+    if not flag: # TODO: Test with different tokens at bridge wallet
+        print("No collateral UTxO found! Attempting to create...")
+        _, until_tip, block = tx.get_tip(profile_name, cache)
+        # Setup UTxOs
+        tx_out = tx.process_tokens(profile_name, cache, tokens, watch_addr, 'all', ada_amt) # Process all tokens and change
+        tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Create collateral UTxO
+        print('\nTX Out Settings for Creating Collateral: ', tx_out)
+        tx_data = [
+            ''
+        ]
+        tx.build_tx(profile_name, log, cache, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
+        
+        # Sign and submit the transaction
+        witnesses = [
+            '--signing-key-file',
+            watch_skey_path
+        ]
+        tx.sign_tx(profile_name, log, cache, witnesses)
+        tx.submit_tx(profile_name, log, cache)
+        print('\nWaiting for new UTxO to appear on blockchain...')
+        flag = False
+        while not flag:
+            utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(log, cache, 'utxo.json', collateral)
     
     # Build, sign, and send transaction
     if flag is True:
@@ -57,7 +88,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         tx.submit_tx(profile_name, log, cache)
         exit(0)
     else:
-        print("No collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.")
+        print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
         exit(0)
 
 def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, token_qty, return_ada, price,  collateral):
@@ -128,7 +159,7 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
         sc_result = False
     return sc_result
 
-def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, collateral):
+def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, check_price, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
 
@@ -161,7 +192,7 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     FINGERPRINT = tx.get_token_identifier(token_policy_id, token_name) # Not real fingerprint but works
     DATUM_HASH  = tx.get_hash_value(profile_name, '"{}"'.format(FINGERPRINT)).replace('\n', '')
     #print('Datum Hash: ', DATUM_HASH)
-    deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, collateral)
+    deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral)
 
 def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     # Replace the validator options
@@ -413,7 +444,10 @@ if __name__ == "__main__":
                 time.sleep(5)
 
         if OPTION_PASSED == 'deposit':
-            start_deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, COLLATERAL)
+            CHECK_PRICE = 0
+            if EXPECT_ADA != PRICE:
+                CHECK_PRICE = int(PRICE)
+            start_deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL)
 
     # Calculate the "fingerprint" and finalize other variables
     FINGERPRINT = tx.get_token_identifier(TOKEN_POLICY_ID, TOKEN_NAME)
@@ -456,6 +490,7 @@ if __name__ == "__main__":
             with open(runlog_file, 'a') as runlog:
                 runlog.write('Missing expected file: whitelist.txt in your profile folder\n')
                 runlog.close()
+            print('\nMissing Whitelist (whitelist.txt)! Exiting.\n')
             exit(0)
         whitelist_r = open(whitelist_file, 'r')
         windex = 0

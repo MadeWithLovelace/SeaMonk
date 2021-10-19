@@ -314,10 +314,13 @@ def get_utxo(profile_name, token_wallet, cache, file_name):
     p = subprocess.Popen(func)
     p.communicate()
 
-def get_txin(log, cache, file_name, collateral=2000000, spendable=False, allowed_datum=''):
+def get_txin(log, cache, file_name, collateral, spendable=False, allowed_datum='', check_amnt=0):
     # Begin log file
     runlog_file = log + 'run.log'
-    
+    if check_amnt > 0:
+        check_amnt = int(check_amnt) + int(collateral) + 1000000
+    check_price_found = False
+    utxo_ada_sum = 0
     txin_list = []
     data_list = {}
     txincollat_list = []
@@ -337,6 +340,8 @@ def get_txin(log, cache, file_name, collateral=2000000, spendable=False, allowed
             # Check for the ADA collateral on ADA-only UTxOs
             tokencount = len(data[d]['value'])
             if token == 'lovelace' and tokencount == 1:
+                if check_amnt > 0:
+                    utxo_ada_sum += int(data[d]['value'][token])
                 if data[d]['value'][token] == collateral:
                     txincollat_list.append('--tx-in-collateral')
                     txincollat_list.append(d)
@@ -370,6 +375,10 @@ def get_txin(log, cache, file_name, collateral=2000000, spendable=False, allowed
         txin_list.append(d)
         # Increment the counter
         counter += 1
+    if check_amnt > 0:
+        if utxo_ada_sum >= check_amnt:
+            check_price_found = True
+        return check_price_found
     if counter == 1:
         return txin_list, txincollat_list, amount, False, data_list
     return txin_list, txincollat_list, amount, True, data_list
