@@ -79,7 +79,7 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
             with open(runlog_file, 'a') as runlog:
                 runlog.write('\nERROR: Could not file utxo_script.json\n')
                 runlog.close()
-            exit(0)
+            return False
         _, _, sc_tokens, _, data_list = tx.get_txin(log, cache, 'utxo_script.json', collateral, True, datum_hash)
         contract_utxo_in = utxo_in
         for key in data_list:
