@@ -480,7 +480,7 @@ if __name__ == "__main__":
                 runlog.close()
             # Run swap on matched tx
             sc_result = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, TOKEN_QTY, RETURN_ADA, PRICE, COLLATERAL)
-            if sc_result:
+            if sc_result is True:
                 if WHITELIST_ONCE:
                     clean_wlws = RECIPIENT_ADDR
                     with open(whitelist_file,'r') as read_file:
