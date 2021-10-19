@@ -120,11 +120,13 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
         ]
         tx.sign_tx(profile_name, log, cache, witnesses)
         tx.submit_tx(profile_name, log, cache)
+        sc_result = True
     else:
         with open(runlog_file, 'a') as runlog:
             runlog.write('\nNo collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.\n')
             runlog.close()
-        exit(0)
+        sc_result = False
+    return sc_result
 
 def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, collateral):
     # Begin log file
@@ -221,10 +223,15 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     SMARTCONTRACT_PATH = input('\nSmart Contract Plutus File Path\n(path to the ".plutus" file - leave blank if you will be using the built-in simple token swap contract)\n >Smart Contract File Path:')
     TOKEN_POLICY_ID = input('\nToken Policy ID Of Token To Be Deposited To Smart Contract\n(the long string before the dot)\n >Token Policy ID:')
     TOKEN_NAME = input('\nToken Name Of Token To Be Deposited To Smart Contract\n(comes after the dot after the policy ID)\n >Token Name:')
-    TOKEN_QTY = input('\nToken Quantity To Be Sent In Each Swap Transaction\n(how many tokens to send with each successful matched transaction swap)\n >Token Amount To Swap Per TX:')
     print('\n\nNOTE: The following amount responses should all be\n      entered in Lovelace e.g. 1.5 ADA = 1500000\n\n')
     RETURN_ADA = input('\nAmount Of Lovelace To Include With Each Swap Transaction\n(cannot be below protocol limit)\n >Included ADA Amount in Lovelace:')
     EXPECT_ADA = input('\nAmount Of Lovelace To Watch For\n(this is the amount SeaMonk is watching the wallet for)\n >Watch-for Amount in Lovelace:')
+    MININPUT = '0'
+    if not EXPECT_ADA:
+        MININPUT = input('\nMinimum Amount of Lovelace To Watch For\n(minimum to watch for when watching for "any" amount)\n >Watch-for Min Amount in Lovelace:')
+        TOKEN_QTY = input('\nDynamic Token Quantity (Per-ADA) To Be Sent In Each Swap Transaction\n(how many tokens-per-ADA to send with each successful matched transaction swap, e.g. putting 100 means 100 Tokens per 1 ADA sent by a user)\n >Token Amount To Swap Per TX:')
+    else:
+        TOKEN_QTY = input('\nStatic Token Quantity To Be Sent In Each Swap Transaction\n(how many tokens to send with each successful matched transaction swap)\n >Token Amount To Swap Per TX:')
     PRICE = input('\nPrice If Any To Be Paid To Watch Address\n(this is not the amount being watched for)\n >Price Amount in Lovelace:')
     COLLATSTRING = input('\nAmount Of Lovelace Collateral To Include\n(required for smartcontract tx, usually 2000000)\n >Collateral Amount in Lovelace:')
     CHECKSTRING = input('\nCheck for Transactions In Same Instance, Between Payment Processing?\n(Recommended: False - and run a seperate instance for getting transactions)\n >Enter True or False:')
@@ -253,6 +260,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         MAGIC = MAGICINPUT
         API_URI = 'https://cardano-testnet.blockfrost.io/api/v0/'
     COLLATERAL = int(COLLATSTRING)
+    MIN_WATCH = int(MININPUT)
     CHECK = False
     USE_WHITELIST = False
     WHITELIST_ONCE = False
@@ -262,7 +270,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WHITELIST_ONCE = True
 
     # Save to dictionary
-    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA}
+    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -356,6 +364,7 @@ if __name__ == "__main__":
     TOKEN_POLICY_ID = PROFILE['tokenid']
     TOKEN_NAME = PROFILE['tokenname']
     EXPECT_ADA = PROFILE['expectada']
+    MIN_WATCH = PROFILE['min_watch']
     PRICE = PROFILE['price']
     TOKEN_QTY = PROFILE['tokenqty']
     RETURN_ADA = PROFILE['returnada']
@@ -415,7 +424,7 @@ if __name__ == "__main__":
     # TESTING
     """
     print("profile loaded: " + PROFILE_NAME)
-    print("profile settings loaded: log=" + PROFILELOG + " | cache=" + PROFILECACHE + " | api_id=" + API_ID + " | watch_addr=" + WATCH_ADDR + " | collateral=" + str(COLLATERAL) + " | check=" + str(CHECK) + " | whitelist_once=" + str(WHITELIST_ONCE) + " | skey=" + WATCH_SKEY_PATH + " | vkey=" + WATCH_VKEY_PATH + " | pubkey_hash="+WATCH_KEY_HASH+" | sc_path=" + SMARTCONTRACT_PATH + " | token_id=" + TOKEN_POLICY_ID + " | token_name=" + TOKEN_NAME + " | watch_for=" + EXPECT_ADA + " | price=" + PRICE + " | token_qty=" + TOKEN_QTY+ " | return_ada=" + RETURN_ADA)
+    print("profile settings loaded: log=" + PROFILELOG + " | cache=" + PROFILECACHE + " | api_id=" + API_ID + " | watch_addr=" + WATCH_ADDR + " | collateral=" + str(COLLATERAL) + " | check=" + str(CHECK) + " | whitelist_once=" + str(WHITELIST_ONCE) + " | skey=" + WATCH_SKEY_PATH + " | vkey=" + WATCH_VKEY_PATH + " | pubkey_hash="+WATCH_KEY_HASH+" | sc_path=" + SMARTCONTRACT_PATH + " | token_id=" + TOKEN_POLICY_ID + " | token_name=" + TOKEN_NAME + " | watch_for=" + EXPECT_ADA + " | min_watch=" + MIN_WATCH + " | price=" + PRICE + " | token_qty=" + TOKEN_QTY+ " | return_ada=" + RETURN_ADA)
     print("Additional settings:")
     print(load_profile[PROFILE_NAME]['cli_path'])
     print(load_profile[PROFILE_NAME]['network'])
@@ -457,27 +466,34 @@ if __name__ == "__main__":
             if not EXPECT_ADA:
                 EXPECT_ADA = 0
             RECIPIENT_ADDR = waddr.strip()
-            result = tx.check_for_payment(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR, EXPECT_ADA, RECIPIENT_ADDR)
+            result = tx.check_for_payment(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR)
             if len(result) < 1:
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('No new payments detected\n')
+                    runlog.write('No new payments detected:\n')
                     runlog.close()
                 continue
-            if WHITELIST_ONCE:
-                clean_wlws = RECIPIENT_ADDR
-                with open(whitelist_file,'r') as read_file:
-                    lines = read_file.readlines()
-                currentLine = 0
-                with open(whitelist_file,'w') as write_file:
-                    for line in lines:
-                        if line.strip('\n') != clean_wlws:
-                            write_file.write(line)
-                read_file.close()
-                write_file.close()
+                
+            RESLIST = result.split(',')
+            ADA_RECVD = int(RESLIST[2])
+            if MIN_WATCH > 0:
+                TOKEN_QTY = str(int(TOKEN_QTY) * ADA_RECVD)
+
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Running whitelist for addr: '+RECIPIENT_ADDR+' | '+str(EXPECT_ADA)+'\n')
+                runlog.write('Running whitelist for addr: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+'\n')
                 runlog.close()
             # Run swap on matched tx
-            smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, TOKEN_QTY, RETURN_ADA, PRICE, COLLATERAL)
-            time.sleep(300)
+            sc_result = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, TOKEN_QTY, RETURN_ADA, PRICE, COLLATERAL)
+            if sc_result:
+                if WHITELIST_ONCE:
+                    clean_wlws = RECIPIENT_ADDR
+                    with open(whitelist_file,'r') as read_file:
+                        lines = read_file.readlines()
+                    currentLine = 0
+                    with open(whitelist_file,'w') as write_file:
+                        for line in lines:
+                            if line.strip('\n') != clean_wlws:
+                                write_file.write(line)
+                    read_file.close()
+                    write_file.close()
+                time.sleep(300)
         whitelist_r.close()

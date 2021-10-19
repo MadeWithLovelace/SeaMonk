@@ -180,7 +180,7 @@ def log_new_txs(profile_name, log, api_id, wallet_addr):
             txlog_r.close()
     return txcount
     
-def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, sender_addr = 'none'):
+def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_watch = 0, sender_addr = 'none'):
     """
     Checks for an expected amount of ADA from any address in a whitelist (or specific passed) and maintains a log of expected and any other present UTxO payments in profile-specific payments.log file
     """
@@ -193,7 +193,7 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, sender
     record_as_payment = False
     if sender_addr == 'none':
         compare_addr = False
-    if int(amount) == 0:
+    if int(amount) == 0 and int(min_watch) == 0:
         compare_amnt = False
     return_data = ''
     payments_file = log + 'payments.log'
@@ -251,26 +251,31 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, sender
                         runlog.write('\n--- Long Address Detected, Trimming: ---\n' + sender_addr + ' | ' + tx_addr + '\n-----------------------------------\n')
                         runlog.close()
                 if compare_addr == True and compare_amnt == True:
-                    if tx_addr == sender_addr and int(tx_amnt) == int(amount):
-                        record_as_payment = True
-                    else:
-                        record_as_payment = False
+                    if tx_addr == sender_addr:
+                        if int(min_watch) > 0:
+                            record_as_payment = True
+                        elif int(tx_amnt) == int(amount):
+                            record_as_payment = True
+                        else:
+                            record_as_payment = False
                 elif compare_addr == True:
                     if tx_addr == sender_addr:
                         record_as_payment = True
                     else:
                         record_as_payment = False
                 elif compare_amnt == True:
-                    if tx_amnt == int(amount):
+                    if int(min_watch) > 0:
+                        record_as_payment = True
+                    elif tx_amnt == int(amount):
                         record_as_payment = True
                     else:
                         record_as_payment = False
                 else:
                     record_as_payment = True
                 if record_as_payment == True:
-                    return_data += tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + '\n'
+                    return_data += tx_hash + ',' + tx_addr + ',' + str(tx_amnt)
                     with open(payments_file, 'a') as payments_a:
-                        payments_a.write(return_data)
+                        payments_a.write(return_data + '\n')
                         payments_a.close()
             payments_r.close()
     txlog_r.close()
