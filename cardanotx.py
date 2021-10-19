@@ -136,7 +136,6 @@ def log_new_txs(profile_name, log, api_id, wallet_addr):
         '--address',
         wallet_addr
     ])
-    print('\nRaw utxo: ',rawUtxoTable)
     # Output rows
     utxoTableRows = rawUtxoTable.strip().splitlines()
     # Foreach row compare against each line of tx file
@@ -160,9 +159,7 @@ def log_new_txs(profile_name, log, api_id, wallet_addr):
                 # Get curl data from blockfrost on new tx's only
                 headers = {'project_id': api_id}
                 cmd = s[profile_name]['api_uri'] + 'txs/' + tx_hash + '/utxos'
-                print('\nCommand: ',cmd)
                 tx_result = requests.get(cmd, headers=headers)
-                print('\nRequest result: ',tx_result)
                 
                 # Check if hash found at api
                 if 'status_code' in tx_result.json():

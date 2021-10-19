@@ -423,7 +423,7 @@ if __name__ == "__main__":
             pass
     with open(runlog_file, 'a') as runlog:
         time_now = datetime.datetime.now()
-        runlog.write('\nNew Run at: ' + str(time_now))
+        runlog.write('\n===============================\n          New Run at: ' + str(time_now) + '\n===============================\n')
         runlog.close()
 
     # Check for smartcontract file and prompt to create if not found
@@ -443,9 +443,7 @@ if __name__ == "__main__":
 
         if OPTION_PASSED == 'get_transactions':
             while True:
-                print('\nChecking: '+PROFILE_NAME+' | '+PROFILELOG+' | '+API_ID+' | '+WATCH_ADDR)
                 result_tx = tx.log_new_txs(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR)
-                print('\nResult: ', result_tx)
                 time.sleep(5)
 
         if OPTION_PASSED == 'deposit':
@@ -508,9 +506,6 @@ if __name__ == "__main__":
             RECIPIENT_ADDR = waddr.strip()
             result = tx.check_for_payment(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR)
             if len(result) < 1:
-                with open(runlog_file, 'a') as runlog:
-                    runlog.write('No new payments detected:\n')
-                    runlog.close()
                 continue
             RESLIST = result.split(',')
             ADA_RECVD = int(RESLIST[2])
