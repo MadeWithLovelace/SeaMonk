@@ -536,17 +536,17 @@ if __name__ == "__main__":
                     sc_bal = int(sc_tkns[token][t_qty])
             if TOKEN_QTY > sc_bal:
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nLOW BALANCE: Skipping transaction due to low SC balance!\nTX Details: recipient: ' + RECIPIENT_ADDR + ' | tokens: ' + str(TOKEN_QTY) + ' | ADA Paid: ' + str(ADA_RECVD) + ' | SC Balance: ' + str(sc_bal))
+                    runlog.write('\nLOW BALANCE: Skipping transaction due to low SC balance!\nTX Details: recipient: ' + RECIPIENT_ADDR + ' | tokens: ' + str(TOKEN_QTY) + ' | ADA Paid: ' + str(ADA_RECVD) + ' | SC Balance: ' + str(sc_bal) + ' | datum: ' + DATUM_HASH)
                     runlog.close()
-                continue
-                
+                #continue
+
             # Run swap on matched tx
             sc_result = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKEN_QTY), RETURN_ADA, PRICE, COLLATERAL)
             if sc_result is True:
                 # Record the payment as completed
                 payments_file = PROFILELOG + 'payments.log'
                 with open(payments_file, 'a') as payments_a:
-                    payments_a.write(return_data + '\n')
+                    payments_a.write(result + '\n')
                     payments_a.close()
                 if WHITELIST_ONCE:
                     clean_wlws = RECIPIENT_ADDR
