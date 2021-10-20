@@ -247,7 +247,7 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
                 continue
             if flag == 0:
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('\n--- DEBUG-0: ---\nBEGIN FOR COMPARE TO ADDR and RecordPay Setting:'+tx_addr+' | '+str(record_as_payment))
+                    runlog.write('\n--- Checking: ---\nBEGIN FOR COMPARE TO ADDR and RecordPay Setting:'+tx_addr+' | '+str(record_as_payment))
                     runlog.close()
                 if len(sender_addr) == 103:
                     sender_addr = sender_addr[52:-6]
@@ -255,44 +255,20 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\n--- Long Address Detected, Trimming: ---\n' + sender_addr + ' | ' + tx_addr + '\n-----------------------------------\n')
                         runlog.close()
-                with open(runlog_file, 'a') as runlog:
-                    runlog.write('\n--- DEBUG-1: ---\nsender | tx_addr: '+sender_addr+' | '+tx_addr)
-                    runlog.close()
                 if compare_addr == True and compare_amnt == True:
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\n--- DEBUG-2: ---\ntrue and true')
-                        runlog.close()
                     if tx_addr == sender_addr:
-                        with open(runlog_file, 'a') as runlog:
-                            runlog.write('\n--- DEBUG-3: ---\naddresses match')
-                            runlog.close()
                         if min_watch > 0 and tx_amnt >= min_watch:
-                            with open(runlog_file, 'a') as runlog:
-                                runlog.write('\n--- DEBUG-4: ---\nmin watch detected within range')
-                                runlog.close()
                             record_as_payment = True
                         elif tx_amnt == amount:
-                            with open(runlog_file, 'a') as runlog:
-                                runlog.write('\n--- DEBUG-5: ---\namounts match exactly, no minwatch')
-                                runlog.close()
                             record_as_payment = True
                         else:
-                            with open(runlog_file, 'a') as runlog:
-                                runlog.write('\n--- DEBUG-6: ---\nelse statement hit!')
-                                runlog.close()
                             record_as_payment = False
                 elif compare_addr == True:
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\n--- DEBUG-7: ---\nelif on compare_addr for True')
-                        runlog.close()
                     if tx_addr == sender_addr:
                         record_as_payment = True
                     else:
                         record_as_payment = False
                 elif compare_amnt == True:
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\n--- DEBUG-8: ---\nelif on compare_amnt for True')
-                        runlog.close()
                     if min_watch > 0 and tx_amnt >= min_watch:
                         record_as_payment = True
                     elif tx_amnt == amount:
@@ -300,15 +276,13 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
                     else:
                         record_as_payment = False
                 else:
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\n--- DEBUG-9: ---\nelse on main if compare_addr/amnt sections')
-                        runlog.close()
                     record_as_payment = True
                 if record_as_payment == True:
                     return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt)
                     with open(payments_file, 'a') as payments_a:
                         payments_a.write(return_data + '\n')
                         payments_a.close()
+            record_as_payment = False
             payments_r.close()
     txlog_r.close()
     return return_data

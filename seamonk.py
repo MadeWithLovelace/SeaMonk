@@ -511,7 +511,10 @@ if __name__ == "__main__":
             ADA_RECVD = int(RESLIST[2])
             if MIN_WATCH > 0:
                 ADA_TOSWAP = ADA_RECVD - int(RETURN_ADA)
-                TOKEN_QTY = str(round((int(TOKEN_QTY) * ADA_TOSWAP) / 1000000))
+                TKN_QC = int(TOKEN_QTY)
+                TKN_MATH = (TKN_QC * ADA_TOSWAP) / 1000000
+                TKN_INT = int(TKN_MATH)
+                TOKEN_QTY = str(TKN_INT)
             with open(runlog_file, 'a') as runlog:
                 runlog.write('Running whitelist for addr: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+'\n')
                 runlog.close()
