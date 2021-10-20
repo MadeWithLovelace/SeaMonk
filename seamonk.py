@@ -509,15 +509,12 @@ if __name__ == "__main__":
                 continue
             RESLIST = result.split(',')
             ADA_RECVD = int(RESLIST[2])
-            with open(runlog_file, 'a') as runlog:
-                runlog.write('\nADA Received: ---\n' + str(ADA_RECVD))
-                runlog.close()
             if MIN_WATCH > 0:
                 RET_INT = int(RETURN_ADA)
                 ADA_TOSWAP = ADA_RECVD - RET_INT
                 TOKENS_TOSWAP = int((int(TOKEN_QTY) * ADA_TOSWAP) / 1000000)
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Running whitelist for addr/ada-rec/tokenmath: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+' | '+str(TOKENS_TOSWAP)+'\n')
+                runlog.write('Running whitelist for addr/ada-rec/tokens-to-swap: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+' | '+str(TOKENS_TOSWAP)+'\n')
                 runlog.close()
             # Get SC Token Balance and Compare
             tx.get_utxo(PROFILE_NAME, SMARTCONTRACT_ADDR, PROFILECACHE, 'utxo_script_check.json')
