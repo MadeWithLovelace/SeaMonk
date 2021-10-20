@@ -509,18 +509,45 @@ if __name__ == "__main__":
                 continue
             RESLIST = result.split(',')
             ADA_RECVD = int(RESLIST[2])
+            with open(runlog_file, 'a') as runlog:
+                runlog.write('\nADA Received: ---\n' + str(ADA_RECVD))
+                runlog.close()
             if MIN_WATCH > 0:
-                ADA_TOSWAP = ADA_RECVD - int(RETURN_ADA)
+                RET_INT = int(RETURN_ADA)
+                ADA_TOSWAP = ADA_RECVD - RET_INT
                 TKN_QC = int(TOKEN_QTY)
                 TKN_MATH = (TKN_QC * ADA_TOSWAP) / 1000000
-                TKN_INT = int(TKN_MATH)
-                TOKEN_QTY = str(TKN_INT)
+                TOKEN_QTY = int(TKN_MATH)
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Running whitelist for addr: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+'\n')
+                runlog.write('Running whitelist for addr/ada-rec/tokenmath: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+' | '+str(TOKEN_QTY)+'\n')
                 runlog.close()
+            # Get SC Token Balance and Compare
+            tx.get_utxo(PROFILE_NAME, SMARTCONTRACT_ADDR, PROFILECACHE, 'utxo_script_check.json')
+            if isfile(PROFILECACHE+'utxo_script_check.json') is False:
+                with open(runlog_file, 'a') as runlog:
+                    runlog.write('\nERROR: Could not file utxo_script_check.json\n')
+                    runlog.close()
+            _, _, sc_tkns, _, _ = tx.get_txin(PROFILELOG, PROFILECACHE, 'utxo_script_check.json', COLLATERAL, True, DATUM_HASH)
+            sc_bal = 0
+            for token in sc_tkns:
+                if token != TOKEN_POLICY_ID:
+                    continue
+                for t_qty in sc_tkns[token]:
+                    sc_bal = int(sc_tkns[token][t_qty])
+            if TOKEN_QTY > sc_bal:
+                with open(runlog_file, 'a') as runlog:
+                    runlog.write('\nLOW BALANCE: Skipping transaction due to low SC balance!\nTX Details: recipient: ' + RECIPIENT_ADDR + ' | tokens: ' + str(TOKEN_QTY) + ' | ADA Paid: ' + str(ADA_RECVD) + ' | SC Balance: ' + str(sc_bal))
+                    runlog.close()
+                continue
+                
             # Run swap on matched tx
-            sc_result = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, TOKEN_QTY, RETURN_ADA, PRICE, COLLATERAL)
+            sc_result = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKEN_QTY), RETURN_ADA, PRICE, COLLATERAL)
             if sc_result is True:
+                # Record the payment as completed
+                payments_file = PROFILELOG + 'payments.log'
+                with open(payments_file, 'a') as payments_a:
+                    payments_a.write(return_data + '\n')
+                    payments_a.close()
                 if WHITELIST_ONCE:
                     clean_wlws = RECIPIENT_ADDR
                     with open(whitelist_file,'r') as read_file:

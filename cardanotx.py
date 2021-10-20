@@ -279,11 +279,14 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
                     record_as_payment = True
                 if record_as_payment == True:
                     return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt)
-                    with open(payments_file, 'a') as payments_a:
-                        payments_a.write(return_data + '\n')
-                        payments_a.close()
+                    with open(runlog_file, 'a') as runlog:
+                        runlog.write('\nReturn Data: ---\n' + return_data)
+                        runlog.close()
             record_as_payment = False
             payments_r.close()
+    with open(runlog_file, 'a') as runlog:
+        runlog.write('\nFINAL Return Data: ---\n' + return_data)
+        runlog.close()
     txlog_r.close()
     return return_data
 
