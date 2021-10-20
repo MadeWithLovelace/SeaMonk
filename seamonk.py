@@ -132,7 +132,72 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
             print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
             exit(0)
 
-def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, token_qty, return_ada, price,  collateral):
+def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, return_ada, price, collateral, refund_amnt, return_tokens = False):
+    # Begin log file
+    runlog_file = log + 'run.log'
+
+    # Clear the cache
+    tx.clean_folder(cache)
+    tx.proto(profile_name, cache)
+    tx.get_utxo(profile_name, watch_addr, cache, 'utxo.json')
+
+    # Run get_txin
+    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(log, cache, 'utxo.json', collateral)
+    
+    # Build, Sign, and Send TX
+    if flag is True:
+        if return_tokens:
+            tx.get_utxo(profile_name, smartcontract_addr, cache, 'utxo_script.json')
+            if isfile(cache+'utxo_script.json') is False:
+                with open(runlog_file, 'a') as runlog:
+                    runlog.write('\nERROR: Could not file utxo_script.json\n')
+                    runlog.close()
+                return False
+            _, _, sc_tokens, _, data_list = tx.get_txin(log, cache, 'utxo_script.json', collateral, True, datum_hash)
+
+            for token in sc_tokens:
+                # lovelace will be auto accounted for using --change-address
+                if token == 'lovelace':
+                    continue
+                for t_qty in sc_tokens[token]:
+                    sc_out = sc_tokens[token][t_qty]
+
+        contract_utxo_in = utxo_in
+        for key in data_list:
+            # A single UTXO with a single datum can be spent
+            if data_list[key] == datum_hash:
+                contract_utxo_in += ['--tx-in', key]
+                break
+        _, until_tip, block = tx.get_tip(profile_name, cache)
+        
+        tx_out = tx.process_tokens(profile_name, cache, tokens, recipient_addr, refund_amnt) # UTxO to Send Token(s) to the Buyer
+        tx_out += tx.process_tokens(profile_name, cache, tokens, watch_addr) # Change
+        tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Replenish collateral
+        if return_tokens:
+            tx_out += ['--tx-out', watch_addr + '+' + str(price)] # UTxO for price if set to process price payment
+            tx_out += tx.process_tokens(profile_name, cache, sc_tokens, watch_addr, sc_out, return_ada) # UTxO to Get SC Tokens Out
+            tx_data = [
+                '--tx-in-datum-value', '"{}"'.format(tx.get_token_identifier(token_policy_id, token_name)),
+                '--tx-in-redeemer-value', '""',
+                '--tx-in-script-file', smartcontract_path
+            ]
+        tx.build_tx(profile_name, log, cache, watch_addr, until_tip, contract_utxo_in, utxo_col, tx_out, tx_data)
+        
+        witnesses = [
+            '--signing-key-file',
+            watch_skey_path
+        ]
+        tx.sign_tx(profile_name, log, cache, witnesses)
+        tx.submit_tx(profile_name, log, cache)
+        withdraw_result = True
+    else:
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\nNo collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.\n')
+            runlog.close()
+        withdraw_result = False
+    return withdraw_result
+
+def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, token_qty, return_ada, price, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
 
@@ -313,6 +378,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     RECURRINGSTRING = input('\nIs This A Recurring Amount?\n(type True or False)\n >Recurring Deposit? ')
     SC_ADA_AMNT = input('\nAmount Of Lovelace To Be At UTxO On SmartContract\n(cannot be lower than protocol, 2 ADA is recommended for most cases)\n >Quantity of ' + TOKEN_NAME +' Amount in Lovelace:')
     WT_ADA_AMNT = input('\nAmount Of Lovelace To Be At UTxO Of Token Change At Watched Wallet\n(cannot be lower than protocol, 2 ADA is recommended for most cases)\n >Quantity of ' + TOKEN_NAME +' Amount in Lovelace:')
+    AUTO_REFUNDSTRING = input('\nAutomatically Refund Payments Too Large?\n(type True or False - this will enable auto-refunds for payments which exceed the tokens ever available for swap by the SmartContract)\n >Refunds Enabled?')
     
     # Setup profile-specific cache and log folders
     log = os.path.join(os.path.join(logroot, UNIQUE_NAME), '')
@@ -341,12 +407,15 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     USE_WHITELIST = False
     WHITELIST_ONCE = False
     RECURRING = False
+    AUTO_REFUND = False
     if CHECKSTRING == 'True' or CHECKSTRING == 'true':
         CHECK = True
     if WLONESTRING == 'True' or WLONESTRING == 'true':
         WHITELIST_ONCE = True
     if RECURRINGSTRING == 'True' or RECURRINGSTRING == 'true':
         RECURRING = True
+    if AUTO_REFUNDSTRING == 'True' or AUTO_REFUNDSTRING == 'true':
+        AUTO_REFUND = True
 
     # Save to dictionary
     rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRINGSTRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT}
@@ -451,6 +520,7 @@ if __name__ == "__main__":
     RECURRINGSTRING = PROFILE['recurring']
     SC_ADA_AMNT = PROFILE['sc_ada_amnt']
     WT_ADA_AMNT = PROFILE['wt_ada_amnt']
+    AUTO_REFUND = PROFILE['auto_refund']
 
     # Input before settings load
     if len(OPTION_PASSED) > 0:
@@ -584,8 +654,11 @@ if __name__ == "__main__":
                     runlog.write('\nLOW BALANCE: Skipping transaction due to low SC balance for now...attempting to replenish SC!\nTX Details: recipient: ' + RECIPIENT_ADDR + ' | tokens: ' + str(TOKENS_TOSWAP) + ' | ADA Paid: ' + str(ADA_RECVD) + ' | SC Balance: ' + str(sc_bal) + ' | datum: ' + DATUM_HASH)
                     runlog.close()
 
-                # Try to deposit another batch if recurring is set
-                if RECURRING:
+                # Try to deposit another batch if recurring is set and balance is truly low (within 10%)
+                supply_diff = (int(DEPOSIT_AMNT) - sc_bal) / int(DEPOSIT_AMNT) # Check bal diff, make sure it's low
+                # TESTING
+                print('\nToken Swap exceeds SC balance, supply diff: ', supply_diff)
+                if RECURRING and 0.1 >= supply_diff:
                     CHECK_PRICE = 0
                     if EXPECT_ADA != PRICE:
                         CHECK_PRICE = int(PRICE)
@@ -596,9 +669,16 @@ if __name__ == "__main__":
                     # Check for tx before continuing TODO: TESTING
                     flag = False
                     while not flag:
-                        _, _, _, flag, _ = tx.get_txin(log, cache, 'utxo.json', 2121212)
-
-                continue
+                        _, _, _, flag, _ = tx.get_txin(log, cache, 'utxo.json', 2121212) # TODO: Watch SC for new deposit instead
+                elif not RECURRING or TOKENS_TOSWAP > int(DEPOSIT_AMNT):
+                    with open(runlog_file, 'a') as runlog:
+                        runlog.write('\nNot a recurring-deposit profile or requested Token Swap exceeds total sc available in any deposit (may try to refund): '+RECIPIENT_ADDR+' | '+str(TOKENS_TOSWAP)+' | '+str(ADA_RECVD))
+                        runlog.close()
+                    if AUTO_REFUND:
+                        REFUND_AMNT = TOKENS_TOSWAP - 200000 # TODO: Calculate fee - create a function within cardanotx
+                        withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, REFUND_AMNT)
+                else:
+                    continue # skip for now
 
             # Run swap on matched tx
             sc_result = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKENS_TOSWAP), RETURN_ADA, PRICE, COLLATERAL)
