@@ -8,7 +8,7 @@ import getopt
 from sys import exit, argv
 from os.path import isdir, isfile
 
-def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral):
+def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, replenish = False):
     # Begin log file
     runlog_file = log + 'run.log'
     
@@ -24,19 +24,23 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
     if check_price > 0:
         fee_buffer = 1000000
         check_price = int(check_price) + int(sc_ada_amt) + int(ada_amt) + int(collateral) + fee_buffer
-        print('\nCheck Price now: ', check_price)
+        if not replenish:
+            print('\nCheck Price now: ', check_price)
         is_price_utxo = tx.get_txin(log, cache, 'utxo.json', collateral, False, '', int(check_price))
         if not is_price_utxo:
-            print("\nNot enough ADA in your wallet to cover Price and Collateral. Add some funds and try again.\n")
-            exit(0)
+            if not replenish:
+                print("\nNot enough ADA in your wallet to cover Price and Collateral. Add some funds and try again.\n")
+                exit(0)
 
     if not flag: # TODO: Test with different tokens at bridge wallet
-        print("No collateral UTxO found! Attempting to create...")
+        if not replenish:
+            print("No collateral UTxO found! Attempting to create...")
         _, until_tip, block = tx.get_tip(profile_name, cache)
         # Setup UTxOs
         tx_out = tx.process_tokens(profile_name, cache, tokens, watch_addr, 'all', ada_amt) # Process all tokens and change
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Create collateral UTxO
-        print('\nTX Out Settings for Creating Collateral: ', tx_out)
+        if not replenish:
+            print('\nTX Out Settings for Creating Collateral: ', tx_out)
         tx_data = [
             ''
         ]
@@ -49,7 +53,8 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         ]
         tx.sign_tx(profile_name, log, cache, witnesses)
         tx.submit_tx(profile_name, log, cache)
-        print('\nWaiting for new UTxO to appear on blockchain...')
+        if not replenish:
+            print('\nWaiting for new UTxO to appear on blockchain...')
         flag = False
         while not flag:
             utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(log, cache, 'utxo.json', collateral)
@@ -72,14 +77,45 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         # Setup UTxOs
         tx_out = tx.process_tokens(profile_name, cache, tokens, watch_addr, 'all', ada_amt, [token_policy_id, token_name]) # Account for all except token to swap
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # UTxO to replenish collateral
+        if replenish:
+            tx_out += ['--tx-out', watch_addr + '+2121212'] # UTxO to replenish collateral
         if tok_new > 0:
             tx_out += tx.process_tokens(profile_name, cache, tokens, watch_addr, tok_new, ada_amt) # Account for deposited-token change (if any)
+        # Account for replenish
+        if replenish:
+            if sc_out > tok_bal:
+                sc_out = tok_bal
+            tx.get_utxo(profile_name, smartcontract_addr, cache, 'utxo_script_replenish.json')
+            if isfile(cache+'utxo_script_replenish.json') is False:
+                with open(runlog_file, 'a') as runlog:
+                    runlog.write('\nERROR: Could not file utxo_script_replenish.json\n')
+                    runlog.close()
+                return False
+            _, _, sc_tokens, _, data_list = tx.get_txin(log, cache, 'utxo_script_replenish.json', collateral, True, datum_hash)
+
+            for token in sc_tokens:
+                # lovelace will be auto accounted for using --change-address
+                if token == 'lovelace':
+                    continue
+                for t_qty in sc_tokens[token]:
+                    sc_bal = sc_tokens[token][t_qty]
+            tx_out += tx.process_tokens(profile_name, cache, sc_tokens, watch_addr, sc_bal, sc_ada_amt)
+
         tx_out += tx.process_tokens(profile_name, cache, tokens, smartcontract_addr, sc_out, sc_ada_amt, [token_policy_id, token_name], False) # Send just the token for swap
-        print('\nTX Out Settings: ', tx_out)
+        if not replenish:
+            print('\nTX Out Settings: ', tx_out)
         tx_data = [
             '--tx-out-datum-hash', datum_hash # This has to be the hash of the fingerprint of the token
         ]
-        print('\nDatum: ', tx_data)
+        if replenish:
+            tx_data = [
+                '--tx-out-datum-hash', datum_hash,
+                '--tx-in-datum-value', '"{}"'.format(tx.get_token_identifier(token_policy_id, token_name)),
+                '--tx-in-redeemer-value', '""',
+                '--tx-in-script-file', smartcontract_path
+            ]
+        if not replenish:
+            print('\nDatum: ', tx_data)
         tx.build_tx(profile_name, log, cache, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
         
         # Sign and submit the transaction
@@ -89,10 +125,12 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         ]
         tx.sign_tx(profile_name, log, cache, witnesses)
         tx.submit_tx(profile_name, log, cache)
-        exit(0)
+        if not replenish:
+            exit(0)
     else:
-        print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
-        exit(0)
+        if not replenish:
+            print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
+            exit(0)
 
 def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, token_qty, return_ada, price,  collateral):
     # Begin log file
@@ -195,7 +233,7 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     FINGERPRINT = tx.get_token_identifier(token_policy_id, token_name) # Not real fingerprint but works
     DATUM_HASH  = tx.get_hash_value(profile_name, '"{}"'.format(FINGERPRINT)).replace('\n', '')
     #print('Datum Hash: ', DATUM_HASH)
-    deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral)
+    deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral)
 
 def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     # Replace the validator options
@@ -270,6 +308,11 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     COLLATSTRING = input('\nAmount Of Lovelace Collateral To Include\n(required for smartcontract tx, usually 2000000)\n >Collateral Amount in Lovelace:')
     CHECKSTRING = input('\nCheck for Transactions In Same Instance, Between Payment Processing?\n(Recommended: False - and run a seperate instance for getting transactions)\n >Enter True or False:')
     WLONESTRING = input('\nRemove A Sender Address From Whitelist After 1 Payment is Received?\n >Enter True or False:')
+    print('\n\nAfter this setup and any smart-contract generating, you will need to deposit into the smart contract by running: "python3 seamonk.py --option deposit". The following inputs are related to deposits. For auto-replenishing a smart-contract wherein you are sending a large amount to be processed in smaller batches, the token quantity you enter in the following input, will apply to each deposit replenish attempt.\n\n')
+    DEPOSIT_AMNT = input('\nQuantity of Tokens You Will Deposit\n(you can enter a batch amount, when it runs low the app will try to replenish with the same batch amount)\n >Quantity of ' + TOKEN_NAME +' Tokens to Deposit:')
+    RECURRINGSTRING = input('\nIs This A Recurring Amount?\n(type True or False)\n >Recurring Deposit? ')
+    SC_ADA_AMNT = input('\nAmount Of Lovelace To Be At UTxO On SmartContract\n(cannot be lower than protocol, 2 ADA is recommended for most cases)\n >Quantity of ' + TOKEN_NAME +' Amount in Lovelace:')
+    WT_ADA_AMNT = input('\nAmount Of Lovelace To Be At UTxO Of Token Change At Watched Wallet\n(cannot be lower than protocol, 2 ADA is recommended for most cases)\n >Quantity of ' + TOKEN_NAME +' Amount in Lovelace:')
     
     # Setup profile-specific cache and log folders
     log = os.path.join(os.path.join(logroot, UNIQUE_NAME), '')
@@ -297,13 +340,16 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     CHECK = False
     USE_WHITELIST = False
     WHITELIST_ONCE = False
+    RECURRING = False
     if CHECKSTRING == 'True' or CHECKSTRING == 'true':
         CHECK = True
     if WLONESTRING == 'True' or WLONESTRING == 'true':
         WHITELIST_ONCE = True
+    if RECURRINGSTRING == 'True' or RECURRINGSTRING == 'true':
+        RECURRING = True
 
     # Save to dictionary
-    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA}
+    rawSettings = {'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRINGSTRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -401,6 +447,10 @@ if __name__ == "__main__":
     PRICE = PROFILE['price']
     TOKEN_QTY = PROFILE['tokenqty']
     RETURN_ADA = PROFILE['returnada']
+    DEPOSIT_AMNT = PROFILE['deposit_amnt']
+    RECURRINGSTRING = PROFILE['recurring']
+    SC_ADA_AMNT = PROFILE['sc_ada_amnt']
+    WT_ADA_AMNT = PROFILE['wt_ada_amnt']
 
     # Input before settings load
     if len(OPTION_PASSED) > 0:
@@ -531,8 +581,23 @@ if __name__ == "__main__":
                     sc_bal = int(sc_tkns[token][t_qty])
             if TOKENS_TOSWAP > sc_bal:
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nLOW BALANCE: Skipping transaction due to low SC balance!\nTX Details: recipient: ' + RECIPIENT_ADDR + ' | tokens: ' + str(TOKENS_TOSWAP) + ' | ADA Paid: ' + str(ADA_RECVD) + ' | SC Balance: ' + str(sc_bal) + ' | datum: ' + DATUM_HASH)
+                    runlog.write('\nLOW BALANCE: Skipping transaction due to low SC balance for now...attempting to replenish SC!\nTX Details: recipient: ' + RECIPIENT_ADDR + ' | tokens: ' + str(TOKENS_TOSWAP) + ' | ADA Paid: ' + str(ADA_RECVD) + ' | SC Balance: ' + str(sc_bal) + ' | datum: ' + DATUM_HASH)
                     runlog.close()
+
+                # Try to deposit another batch if recurring is set
+                if RECURRING:
+                    CHECK_PRICE = 0
+                    if EXPECT_ADA != PRICE:
+                        CHECK_PRICE = int(PRICE)
+                        print('\nTo check if price amount in wallet: ' + str(CHECK_PRICE))
+                    deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, True)
+                    time.sleep(5)
+
+                    # Check for tx before continuing TODO: TESTING
+                    flag = False
+                    while not flag:
+                        _, _, _, flag, _ = tx.get_txin(log, cache, 'utxo.json', 2121212)
+
                 continue
 
             # Run swap on matched tx
