@@ -256,7 +256,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
     is_txlog_file = os.path.isfile(txlog_file)
     if not is_txlog_file:
         try:
-            log_new_txs(profile_name, log, api_id, wallet_addr)
+            log_new_txs(profile_name, api_id, wallet_addr)
         except OSError:
             pass
 

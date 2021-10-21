@@ -72,7 +72,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         tx_collat_flag = False
         while not tx_collat_flag:
             time.sleep(5)
-            tx_collat_flag = check_for_tx(profile_name, tx_hash_collat)
+            tx_collat_flag = tx.check_for_tx(profile_name, tx_hash_collat)
     
     # Build, sign, and send transaction
     if flag is True:
@@ -295,7 +295,7 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     tx_flag = False
     while not tx_flag:
         time.sleep(5)
-        tx_flag = check_for_tx(profile_name, tx_hash)
+        tx_flag = tx.check_for_tx(profile_name, tx_hash)
     print('\nDeposit Completed!')
 
 def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
@@ -628,7 +628,7 @@ if __name__ == "__main__":
 
         if OPTION_PASSED == 'get_transactions':
             while True:
-                result_tx = tx.log_new_txs(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR)
+                result_tx = tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
                 time.sleep(5)
 
         if OPTION_PASSED == 'deposit':
@@ -664,7 +664,7 @@ if __name__ == "__main__":
         # Check for payment, initiate Smart Contract on success
         # Only run payment check if new transactions are recorded
         if CHECK:
-            result_tx = tx.log_new_txs(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR)
+            result_tx = tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
             with open(runlog_file, 'a') as runlog:
                 runlog.write('New txs to compare: '+str(result_tx)+'\n')
                 runlog.close()
@@ -690,7 +690,7 @@ if __name__ == "__main__":
                 EXPECT_ADA = 0
             RECIPIENT_ADDR = waddr.strip()
             print('\n=====BEGINNING WHITELIST CHECK FOR: '+RECIPIENT_ADDR)
-            result = tx.check_for_payment(PROFILE_NAME, PROFILELOG, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR)
+            result = tx.check_for_payment(PROFILE_NAME, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR)
             if len(result) < 1:
                 continue
             RESLIST = result.split(',')
@@ -706,7 +706,7 @@ if __name__ == "__main__":
                 runlog.write('Running whitelist for addr/ada-rec/tokens-to-swap: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+' | '+str(TOKENS_TOSWAP)+'\n')
                 runlog.close()
             # Get SC Token Balance and Compare
-            tx.get_utxo(PROFILE_NAME, SMARTCONTRACT_ADDR, PROFILECACHE, 'utxo_script_check.json')
+            tx.get_utxo(PROFILE_NAME, SMARTCONTRACT_ADDR, 'utxo_script_check.json')
             if isfile(PROFILECACHE+'utxo_script_check.json') is False:
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nERROR: Could not file utxo_script_check.json\n')
@@ -736,7 +736,7 @@ if __name__ == "__main__":
                         tx_refund_a_flag = False
                         while not tx_refund_a_flag:
                             time.sleep(5)
-                            tx_refund_a_flag = check_for_tx(profile_name, tx_refund_a_hash)
+                            tx_refund_a_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_a_hash)
                         
                         # Record the payment as completed
                         payments_file = PROFILELOG + 'payments.log'
@@ -767,7 +767,7 @@ if __name__ == "__main__":
                         tx_wsc_flag = False
                         while not tx_wsc_flag:
                             time.sleep(5)
-                            tx_wsc_flag = check_for_tx(profile_name, tx_wsc_hash)
+                            tx_wsc_flag = tx.check_for_tx(PROFILE_NAME, tx_wsc_hash)
                         print('\nWithdrawSC Hash found:'+tx_wsc_hash)
                     filePre = 'replenishSC_' + str(datetime.datetime.now()) + '_'
                     tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, True)
@@ -776,7 +776,7 @@ if __name__ == "__main__":
                     tx_rsc_flag = False
                     while not tx_rsc_flag:
                         time.sleep(5)
-                        tx_rsc_flag = check_for_tx(profile_name, tx_rsc_hash)
+                        tx_rsc_flag = tx.check_for_tx(PROFILE_NAME, tx_rsc_hash)
                     print('\nReplenishSC Hash found:'+tx_rsc_hash)
                 elif not RECURRING:
                     print('\nRecurring NOT set, checking if AutoRefund is set to attempt refund...')
@@ -793,7 +793,7 @@ if __name__ == "__main__":
                         tx_refund_b_flag = False
                         while not tx_refund_b_flag:
                             time.sleep(5)
-                            tx_refund_b_flag = check_for_tx(profile_name, tx_refund_b_hash)
+                            tx_refund_b_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_b_hash)
                         print('\nRefund B hash found:'+tx_refund_b_hash)
                         
                         # Record the payment as completed
@@ -809,12 +809,12 @@ if __name__ == "__main__":
             print('\nThis user TX made it to the smartcontract: addr:'+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
             filePre = 'swapTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
             tx_sc_hash = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKENS_TOSWAP), RETURN_ADA, PRICE, COLLATERAL, filePre)
-            if sc_result != 'error':
+            if tx_sc_hash != 'error':
                 # Wait for withdraw to appear...
                 tx_sc_flag = False
                 while not tx_sc_flag:
                     time.sleep(5)
-                    tx_sc_flag = check_for_tx(profile_name, tx_sc_hash)
+                    tx_sc_flag = tx.check_for_tx(PROFILE_NAME, tx_sc_hash)
                 print('\nSmartContract hash found:'+tx_sc_hash)
 
                 # Record the payment as completed
