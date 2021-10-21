@@ -24,6 +24,17 @@ def get_token_identifier(policy_id, token_name):
     h.update(concat)
     return h.hexdigest()
 
+def get_tx_hash(profile_name, filePre):
+    func = [
+        s[profile_name]['cli_path'],
+        'transaction',
+        'txid',
+        '--tx-file',
+        s[profile_name]['txlog'] + filePre + 'tx.signed'
+    ]
+    p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
+    return p
+
 def get_hash_value(profile_name, value):
     func = [
         s[profile_name]['cli_path'],
@@ -35,7 +46,8 @@ def get_hash_value(profile_name, value):
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
-def process_tokens(profile_name, cache, tokens, wallet_addr, amnt='all', return_ada='2000000', exclude='', flag=True):
+def process_tokens(profile_name, tokens, wallet_addr, amnt='all', return_ada='2000000', exclude='', flag=True):
+    cache = s[profile_name]['cache']
     if len(tokens) > 1:
         utxo_string = get_utxo_string(tokens, amnt, exclude, flag)
         if len(utxo_string) != 0:
@@ -107,11 +119,49 @@ def get_smartcontract_addr(profile_name, smartcontract_path):
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
-def log_new_txs(profile_name, log, api_id, wallet_addr):
+def check_for_tx(profile_name, tx_hash_match):
+    """
+    Checks for a matching transaction
+    """
+    # Begin log file
+    log = s[profile_name]['log']
+    runlog_file = log + 'run.log'
+    txlog_file = log + 'transactions.log'
+    is_txlog_file = os.path.isfile(txlog_file)
+    if not is_txlog_file:
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\nERROR tying to open txlog file')
+            runlog.close()
+        return False
+    # Look for tx_hash_match in tx log file
+    txlog_r = open(txlog_file, 'r')
+    with open(txlog_file, 'r') as txlog_r:
+        readtx_index = 0
+        for x in txlog_r:
+            if readtx_index == 0:
+                readtx_index += 1
+                continue
+            readtx_index += 1
+            cells = x.split(',')
+            tx_hash = cells[0]
+            if tx_hash_match == tx_hash:
+                with open(runlog_file, 'a') as runlog:
+                    runlog.write('\nMatching TX found, returning True: '+tx_hash_match+' | '+tx_hash)
+                    runlog.close()
+                txlog_r.close()
+                return True
+    with open(runlog_file, 'a') as runlog:
+        runlog.write('\nNo match found, returning False')
+        runlog.close()
+    txlog_r.close()
+    return False
+
+def log_new_txs(profile_name, api_id, wallet_addr):
     """
     Checks for new transactions and maintains a log of tx_hashes at seamonk-data/transactions.log, returns new tx count integer
     """
     # Begin log file
+    log = s[profile_name]['log']
     runlog_file = log + 'run.log'
 
     # Setup file
@@ -180,11 +230,12 @@ def log_new_txs(profile_name, log, api_id, wallet_addr):
             txlog_r.close()
     return txcount
     
-def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_watch = 0, sender_addr = 'none'):
+def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch = 0, sender_addr = 'none'):
     """
     Checks for an expected amount of ADA from any address in a whitelist (or specific passed) and maintains a log of expected and any other present UTxO payments in profile-specific payments.log file
     """
     # Begin log file
+    log = s[profile_name]['log']
     runlog_file = log + 'run.log'
 
     # Setup file
@@ -290,26 +341,26 @@ def check_for_payment(profile_name, log, api_id, wallet_addr, amount = 0, min_wa
     txlog_r.close()
     return return_data
 
-def clean_folder(cache):
+def clean_folder(profile_name):
     from os import remove
     from glob import glob
-    files = glob(cache + '*')
+    files = glob(s[profile_name]['cache'] + '*')
     for f in files:
         remove(f)
 
-def proto(profile_name, cache):
+def proto(profile_name):
     func = [
         s[profile_name]['cli_path'],
         'query',
         'protocol-parameters',
         '--' + s[profile_name]['network'], s[profile_name]['magic'],
         '--out-file',
-        cache+'protocol.json'
+        s[profile_name]['cache'] + 'protocol.json'
     ]
     p = subprocess.Popen(func)
     p.communicate()
 
-def get_utxo(profile_name, token_wallet, cache, file_name):
+def get_utxo(profile_name, token_wallet, file_name):
     func = [
         s[profile_name]['cli_path'],
         'query',
@@ -318,14 +369,15 @@ def get_utxo(profile_name, token_wallet, cache, file_name):
         '--address',
         token_wallet,
         '--out-file',
-        cache+file_name
+        s[profile_name]['cache'] + file_name
     ]
     p = subprocess.Popen(func)
     p.communicate()
 
-def get_txin(log, cache, file_name, collateral, spendable=False, allowed_datum='', check_amnt=0):
+def get_txin(profile_name, file_name, collateral, spendable=False, allowed_datum='', check_amnt=0):
     # Begin log file
-    runlog_file = log + 'run.log'
+    cache = s[profile_name]['cache']
+    runlog_file = s[profile_name]['log'] + 'run.log'
     if check_amnt > 0:
         check_amnt = int(check_amnt)
     check_price_found = False
@@ -392,7 +444,8 @@ def get_txin(log, cache, file_name, collateral, spendable=False, allowed_datum='
         return txin_list, txincollat_list, amount, False, data_list
     return txin_list, txincollat_list, amount, True, data_list
 
-def get_tip(profile_name, cache):
+def get_tip(profile_name):
+    cache = s[profile_name]['cache']
     add_slots = 1000
     func = [
         s[profile_name]['cli_path'],
@@ -400,7 +453,7 @@ def get_tip(profile_name, cache):
         'tip',
         '--' + s[profile_name]['network'], s[profile_name]['magic'],
         '--out-file',
-        cache+'latest_tip.json'
+        cache + 'latest_tip.json'
     ]
     p = subprocess.Popen(func)
     p.communicate()
@@ -408,9 +461,10 @@ def get_tip(profile_name, cache):
         td = json.load(tip_data)
     return int(td['slot']), int(td['slot']) + add_slots, int(td['block'])
 
-def build_tx(profile_name, log, cache, change_addr, until_tip, utxo_in, utxo_col, utxo_out, tx_data):
+def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, tx_data):
     # Begin log file
-    runlog_file = log + 'run.log'
+    cache = s[profile_name]['cache']
+    runlog_file = s[profile_name]['log'] + 'run.log'
     func = [
         s[profile_name]['cli_path'],
         'transaction',
@@ -442,26 +496,26 @@ def build_tx(profile_name, log, cache, change_addr, until_tip, utxo_in, utxo_col
     p = subprocess.Popen(func)
     p.communicate()
 
-def sign_tx(profile_name, log, cache, witnesses):
+def sign_tx(profile_name, witnesses, filePre):
     # Begin log file
-    runlog_file = log + 'run.log'
+    runlog_file = s[profile_name]['log'] + 'run.log'
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'sign',
         '--tx-body-file',
-        cache+'tx.draft',
+        s[profile_name]['cache'] + 'tx.draft',
         '--' + s[profile_name]['network'], s[profile_name]['magic'],
         '--tx-file',
-        cache+'tx.signed'
+        s[profile_name]['txlog'] + filePre + 'tx.signed'
     ]
     func += witnesses
     p = subprocess.Popen(func)
     p.communicate()
 
-def submit_tx(profile_name, log, cache):
+def submit_tx(profile_name, filePre):
     # Begin log file
-    runlog_file = log + 'run.log'
+    runlog_file = s[profile_name]['log'] + 'run.log'
     func = [
         s[profile_name]['cli_path'],
         'transaction',
@@ -469,7 +523,7 @@ def submit_tx(profile_name, log, cache):
         '--cardano-mode',
         '--' + s[profile_name]['network'], s[profile_name]['magic'],
         '--tx-file',
-        cache+'tx.signed',
+        s[profile_name]['txlog'] + filePre + 'tx.signed',
     ]
     p = subprocess.Popen(func)
     p.communicate()
