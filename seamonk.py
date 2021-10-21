@@ -69,6 +69,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
             print('\nWaiting for new UTxO to appear on blockchain...')
         
         # Wait for tx to appear
+        tx_hash_collat = tx_hash_collat.strip()
         tx_collat_flag = False
         while not tx_collat_flag:
             time.sleep(5)
@@ -292,6 +293,7 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     filePre = 'depositSC_' + str(datetime.datetime.now()) + '_'
     tx_hash = deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral, filePre)
     print('\nDeposit is processing . . . ')
+    tx_hash = tx_hash.strip()
     tx_flag = False
     while not tx_flag:
         time.sleep(5)
@@ -637,6 +639,9 @@ if __name__ == "__main__":
                 CHECK_PRICE = int(PRICE)
                 print('\nTo check if price amount in wallet: ' + str(CHECK_PRICE))
             start_deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL)
+        
+        if OPTION_PASSED == 'replenish':
+            # TODO: Allow for manually replenishing SC
 
     # Calculate the "fingerprint" and finalize other variables
     FINGERPRINT = tx.get_token_identifier(TOKEN_POLICY_ID, TOKEN_NAME)
@@ -733,11 +738,13 @@ if __name__ == "__main__":
                         tx_refund_a_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
                         # Check for tx to complete
+                        print('\nWaiting for tx matching hash:'+tx_refund_a_hash)
+                        tx_refund_a_hash = tx_refund_a_hash.strip()
                         tx_refund_a_flag = False
                         while not tx_refund_a_flag:
                             time.sleep(5)
                             tx_refund_a_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_a_hash)
-                        
+
                         # Record the payment as completed
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
@@ -764,6 +771,7 @@ if __name__ == "__main__":
                         print('\nWithdraw executed for dust in SC...running deposit now...')
 
                         # Wait for withdraw to appear...
+                        tx_wsc_hash = tx_wsc_hash.strip()
                         tx_wsc_flag = False
                         while not tx_wsc_flag:
                             time.sleep(5)
@@ -773,6 +781,7 @@ if __name__ == "__main__":
                     tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, True)
 
                     # Wait for withdraw to appear...
+                    tx_rsc_hash = tx_rsc_hash.strip()
                     tx_rsc_flag = False
                     while not tx_rsc_flag:
                         time.sleep(5)
@@ -790,6 +799,7 @@ if __name__ == "__main__":
                         tx_refund_b_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
                         # Wait for withdraw to appear...
+                        tx_refund_b_hash = tx_refund_b_hash.strip()
                         tx_refund_b_flag = False
                         while not tx_refund_b_flag:
                             time.sleep(5)
@@ -811,6 +821,7 @@ if __name__ == "__main__":
             tx_sc_hash = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKENS_TOSWAP), RETURN_ADA, PRICE, COLLATERAL, filePre)
             if tx_sc_hash != 'error':
                 # Wait for withdraw to appear...
+                tx_sc_hash = tx_sc_hash.strip()
                 tx_sc_flag = False
                 while not tx_sc_flag:
                     time.sleep(5)
