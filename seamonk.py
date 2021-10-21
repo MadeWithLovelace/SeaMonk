@@ -172,12 +172,13 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                 for t_qty in sc_tokens[token]:
                     sc_out = sc_tokens[token][t_qty]
 
-        contract_utxo_in = utxo_in
-        for key in data_list:
-            # A single UTXO with a single datum can be spent
-            if data_list[key] == datum_hash:
-                contract_utxo_in += ['--tx-in', key]
-                break
+            
+            for key in data_list:
+                # A single UTXO with a single datum can be spent
+                if data_list[key] == datum_hash:
+                    utxo_in += ['--tx-in', key]
+                    break
+                    
         _, until_tip, block = tx.get_tip(profile_name, cache)
         
         tx_out = tx.process_tokens(profile_name, cache, tokens, watch_addr) # Change
@@ -193,7 +194,7 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                 '--tx-in-redeemer-value', '""',
                 '--tx-in-script-file', smartcontract_path
             ]
-        tx.build_tx(profile_name, log, cache, watch_addr, until_tip, contract_utxo_in, utxo_col, tx_out, tx_data)
+        tx.build_tx(profile_name, log, cache, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
         
         witnesses = [
             '--signing-key-file',
@@ -738,8 +739,8 @@ if __name__ == "__main__":
                 if TOKENS_TOSWAP > int(DEPOSIT_AMNT):
                     print('\nTokens to Swap exceeds any avail future deposit! Refund to user, minus fees (if this option is enabled)')
                     if AUTO_REFUND:
-                        REFUND_AMNT = TOKENS_TOSWAP - FEE_CHARGE
-                        print('\nfirst_instance...Refund set! attempting to reset for amount: '+str(REFUND_AMNT))
+                        REFUND_AMNT = ADA_RECVD - FEE_CHARGE
+                        print('\nfirst_instance...Refund set! attempting to refund for amount: '+str(REFUND_AMNT))
                         withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, REFUND_AMNT)
                         # TODO: Watch for specific TX before proceeding
                         # Check for tx before continuing TODO: TESTING
