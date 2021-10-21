@@ -642,6 +642,7 @@ if __name__ == "__main__":
         
         if OPTION_PASSED == 'replenish':
             # TODO: Allow for manually replenishing SC
+            print('\nOption not yet enabled')
 
     # Calculate the "fingerprint" and finalize other variables
     FINGERPRINT = tx.get_token_identifier(TOKEN_POLICY_ID, TOKEN_NAME)
