@@ -71,6 +71,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         # Wait for tx to appear
         tx_collat_flag = False
         while not tx_collat_flag:
+            time.sleep(5)
             tx_collat_flag = check_for_tx(profile_name, tx_hash_collat)
     
     # Build, sign, and send transaction
@@ -293,6 +294,7 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     print('\nDeposit is processing . . . ')
     tx_flag = False
     while not tx_flag:
+        time.sleep(5)
         tx_flag = check_for_tx(profile_name, tx_hash)
     print('\nDeposit Completed!')
 
@@ -831,7 +833,7 @@ if __name__ == "__main__":
                                 write_file.write(line)
                     read_file.close()
                     write_file.close()
-                time.sleep(300)
+                time.sleep(10)
             else:
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nSC Swap Failed: '+RECIPIENT_ADDR+' | '+str(TOKENS_TOSWAP)+' | '+str(ADA_RECVD))
