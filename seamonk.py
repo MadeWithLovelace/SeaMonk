@@ -17,7 +17,7 @@ def inputp(prompt, text):
     result = input(prompt)
     readline.set_pre_input_hook()
     return result
-
+    
 def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, filePre, replenish = False):
     # Begin log file
     runlog_file = log + 'run.log'
@@ -767,7 +767,7 @@ if __name__ == "__main__":
                         print('\nTo check if price amount in wallet: ' + str(CHECK_PRICE))
                     if sc_bal > 0:
                         filePre = 'withdrawSC_' + str(datetime.datetime.now()) + '_'
-                        tx_wsc_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, filePre, COLLATERAL)
+                        tx_wsc_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre)
                         print('\nWithdraw executed for dust in SC...running deposit now...')
 
                         # Wait for withdraw to appear...
