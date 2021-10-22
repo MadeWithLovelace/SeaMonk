@@ -326,9 +326,10 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                     return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt)
             record_as_payment = False
             payments_r.close()
-    with open(runlog_file, 'a') as runlog:
-        runlog.write('\n--- Check For Payments Result:: ---\n' + return_data)
-        runlog.close()
+    if len(return_data) > 1:
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\n--- Check For Payments Result:: ---\n' + return_data)
+            runlog.close()
     txlog_r.close()
     return return_data
 

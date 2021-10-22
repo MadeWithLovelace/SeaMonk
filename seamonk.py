@@ -699,7 +699,7 @@ if __name__ == "__main__":
         if CHECK:
             result_tx = tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
             with open(runlog_file, 'a') as runlog:
-                runlog.write('New txs to compare: '+str(result_tx)+'\n')
+                runlog.write('\nNew txs to compare: '+str(result_tx)+'\n')
                 runlog.close()
         
         time.sleep(10)
@@ -709,7 +709,7 @@ if __name__ == "__main__":
         is_whitelist_file = os.path.isfile(whitelist_file)
         if not is_whitelist_file:
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Missing expected file: whitelist.txt in your profile folder\n')
+                runlog.write('\nMissing expected file: whitelist.txt in your profile folder\n')
                 runlog.close()
             print('\nMissing Whitelist (whitelist.txt)! Exiting.\n')
             exit(0)
@@ -734,7 +734,7 @@ if __name__ == "__main__":
                 ADA_TOSWAP = ADA_RECVD - RET_INT
                 TOKENS_TOSWAP = int((int(TOKEN_QTY) * ADA_TOSWAP) / 1000000)
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Running whitelist for addr/ada-rec/tokens-to-swap: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+' | '+str(TOKENS_TOSWAP)+'')
+                runlog.write('\nRunning whitelist for addr/ada-rec/tokens-to-swap: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD)+' | '+str(TOKENS_TOSWAP)+'')
                 runlog.close()
             # Get SC Token Balance and Compare
             tx.get_utxo(PROFILE_NAME, SMARTCONTRACT_ADDR, 'utxo_script_check.json')
@@ -750,7 +750,7 @@ if __name__ == "__main__":
                 for t_qty in sc_tkns[token]:
                     sc_bal = int(sc_tkns[token][t_qty])
             with open(runlog_file, 'a') as runlog:
-                runlog.write('SC Token Balance: '+str(sc_bal))
+                runlog.write('\nSC Token Balance: '+str(sc_bal))
                 runlog.close()
             if TOKENS_TOSWAP > sc_bal:
                 with open(runlog_file, 'a') as runlog:
@@ -763,14 +763,14 @@ if __name__ == "__main__":
                     if AUTO_REFUND:
                         REFUND_AMNT = ADA_RECVD - FEE_CHARGE
                         with open(runlog_file, 'a') as runlog:
-                            runlog.write('Refunding: '+str(REFUND_AMNT))
+                            runlog.write('\nRefunding: '+str(REFUND_AMNT))
                             runlog.close()
                         filePre = 'refundTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
                         tx_refund_a_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
                         # Check for tx to complete
                         with open(runlog_file, 'a') as runlog:
-                            runlog.write('Waiting for tx to clear, with hash: '+tx_refund_a_hash.strip())
+                            runlog.write('\nWaiting for tx to clear, with hash: '+tx_refund_a_hash.strip())
                             runlog.close()
                         tx_refund_a_hash = tx_refund_a_hash.strip()
                         tx_refund_a_flag = False
@@ -780,7 +780,7 @@ if __name__ == "__main__":
 
                         # Record the payment as completed
                         with open(runlog_file, 'a') as runlog:
-                            runlog.write('Hash found, TX completed. Writing to payments.log...')
+                            runlog.write('\nHash found, TX completed. Writing to payments.log...')
                             runlog.close()
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
@@ -810,16 +810,16 @@ if __name__ == "__main__":
                         time.sleep(5)
                         tx_rsc_flag = tx.check_for_tx(PROFILE_NAME, tx_rsc_hash)
                     with open(runlog_file, 'a') as runlog:
-                        runlog.write('Replenish-SC TX Hash Found: '+tx_rsc_hash)
+                        runlog.write('\nReplenish-SC TX Hash Found: '+tx_rsc_hash)
                         runlog.close()
                 elif not RECURRING:
                     with open(runlog_file, 'a') as runlog:
-                        runlog.write('Not a recurring-deposit profile (will try to refund): addr:'+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
+                        runlog.write('\nNot a recurring-deposit profile (will try to refund): addr:'+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
                         runlog.close()
                     if AUTO_REFUND:
                         REFUND_AMNT = TOKENS_TOSWAP - FEE_CHARGE
                         with open(runlog_file, 'a') as runlog:
-                            runlog.write('Sending Refund: '+str(REFUND_AMNT))
+                            runlog.write('\nSending Refund: '+str(REFUND_AMNT))
                             runlog.close()
                         filePre = 'refundTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
                         tx_refund_b_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
@@ -831,7 +831,7 @@ if __name__ == "__main__":
                             time.sleep(5)
                             tx_refund_b_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_b_hash)
                         with open(runlog_file, 'a') as runlog:
-                            runlog.write('Refund TX Hash Found: '+tx_refund_b_hash)
+                            runlog.write('\nRefund TX Hash Found: '+tx_refund_b_hash)
                             runlog.close()
                         
                         # Record the payment as completed
@@ -841,13 +841,13 @@ if __name__ == "__main__":
                             payments_a.close()
                 else:
                     with open(runlog_file, 'a') as runlog:
-                        runlog.write('Balance not below threshold, skipping this TX until SC has sufficient balance')
+                        runlog.write('\nBalance not below threshold, skipping this TX until SC has sufficient balance')
                         runlog.close()
                     continue # skip for now
 
             # Run swap on matched tx
             with open(runlog_file, 'a') as runlog:
-                runlog.write('Process this TX Swap: '+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
+                runlog.write('\nProcess this TX Swap: '+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
                 runlog.close()
             filePre = 'swapTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
             tx_sc_hash = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKENS_TOSWAP), RETURN_ADA, PRICE, COLLATERAL, filePre)
@@ -859,7 +859,7 @@ if __name__ == "__main__":
                     time.sleep(5)
                     tx_sc_flag = tx.check_for_tx(PROFILE_NAME, tx_sc_hash)
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('SmartContract Swap TX Hash Found: '+tx_sc_hash)
+                    runlog.write('\nSmartContract Swap TX Hash Found: '+tx_sc_hash)
                     runlog.close()
 
                 # Record the payment as completed
