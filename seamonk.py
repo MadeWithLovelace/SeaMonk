@@ -18,7 +18,7 @@ def inputp(prompt, text):
     readline.set_pre_input_hook()
     return result
     
-def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, filePre, replenish = False):
+def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, filePre, tokens_to_swap = 0, recipient_addr = '', replenish = False):
     # Begin log file
     runlog_file = log + 'run.log'
     
@@ -89,14 +89,17 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
                 continue
             for t_qty in tokens[token]:
                 tok_bal = tokens[token][t_qty]
-                tok_new = tok_bal - sc_out
+                tok_new = tok_bal - sc_out - tokens_to_swap
+        if tok_new < 0:
+            return 'Error: Token Balance in Watched Wallet Too Low For Replenish+Swap'
 
         # Setup UTxOs
         tx_out = tx.process_tokens(profile_name, tokens, watch_addr, 'all', ada_amt, [token_policy_id, token_name]) # Account for all except token to swap
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # UTxO to replenish collateral
         if tok_new > 0:
-            tx_out += tx.process_tokens(profile_name, tokens, watch_addr, tok_new, ada_amt) # Account for deposited-token change (if any)            
-            
+            tx_out += tx.process_tokens(profile_name, tokens, watch_addr, tok_new, ada_amt) # Account for deposited-token change (if any)
+        if tokens_to_swap > 0:
+            tx_out += tx.process_tokens(profile_name, tokens, recipient_addr, tokens_to_swap, ada_amt, [token_policy_id, token_name], False) # UTxO to Send Token(s) to the Buyer
         tx_out += tx.process_tokens(profile_name, tokens, smartcontract_addr, sc_out, sc_ada_amt, [token_policy_id, token_name], False) # Send just the token for swap
         tx_out += '--tx-out-datum-hash', datum_hash
         tx_data = []
@@ -148,7 +151,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         if not replenish:
             print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
             exit(0)
-        return 'error'
+        return 'Error: Collateral UTxO Missing or could not be created.'
 
 def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, return_ada, price, collateral, filePre, refund_amnt = 0):
     # Begin log file
@@ -789,10 +792,9 @@ if __name__ == "__main__":
                     continue
                 
                 # Refresh Low SC Balance
-                supply_diff = sc_bal / int(DEPOSIT_AMNT) # Check bal diff, make sure it's low
-                if RECURRING and 0.1 >= supply_diff:
+                if RECURRING:
                     with open(runlog_file, 'a') as runlog:
-                        runlog.write('\nSC Bal is below 10% threshold, attempting to replenish...')
+                        runlog.write('\nRecurring deposits enabled, attempting to replenish SC...')
                         runlog.close()
                     CHECK_PRICE = 0
                     if EXPECT_ADA != PRICE:
@@ -801,7 +803,11 @@ if __name__ == "__main__":
                             runlog.write('Price set as: '+str(CHECK_PRICE))
                             runlog.close()
                     filePre = 'replenishSC_' + str(datetime.datetime.now()) + '_'
-                    tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, True)
+                    tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, TOKENS_TOSWAP, RECIPIENT_ADDR, True)
+
+                    with open(runlog_file, 'a') as runlog:
+                        runlog.write('\nTX Result: '+tx_rsc_hash+' - Waiting for confirmation...')
+                        runlog.close()
 
                     # Wait for transaction to clear...
                     tx_rsc_hash = tx_rsc_hash.strip()
@@ -812,7 +818,14 @@ if __name__ == "__main__":
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nReplenish-SC TX Hash Found: '+tx_rsc_hash)
                         runlog.close()
-                elif not RECURRING:
+
+                    # Record the payment as completed
+                    payments_file = PROFILELOG + 'payments.log'
+                    with open(payments_file, 'a') as payments_a:
+                        payments_a.write(result + '\n')
+                        payments_a.close()
+                    continue
+                else:
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nNot a recurring-deposit profile (will try to refund): addr:'+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
                         runlog.close()
@@ -834,16 +847,12 @@ if __name__ == "__main__":
                             runlog.write('\nRefund TX Hash Found: '+tx_refund_b_hash)
                             runlog.close()
                         
-                        # Record the payment as completed
-                        payments_file = PROFILELOG + 'payments.log'
-                        with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + '\n')
-                            payments_a.close()
-                else:
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\nBalance not below threshold, skipping this TX until SC has sufficient balance')
-                        runlog.close()
-                    continue # skip for now
+                    # Record the payment as completed
+                    payments_file = PROFILELOG + 'payments.log'
+                    with open(payments_file, 'a') as payments_a:
+                        payments_a.write(result + '\n')
+                        payments_a.close()
+                    continue
 
             # Run swap on matched tx
             with open(runlog_file, 'a') as runlog:
