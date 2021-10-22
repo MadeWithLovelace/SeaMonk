@@ -150,9 +150,6 @@ def check_for_tx(profile_name, tx_hash_match):
                     runlog.close()
                 txlog_r.close()
                 return True
-    with open(runlog_file, 'a') as runlog:
-        runlog.write('\nNo match found, returning False')
-        runlog.close()
     txlog_r.close()
     return False
 
