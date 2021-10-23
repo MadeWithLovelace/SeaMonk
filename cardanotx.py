@@ -108,11 +108,14 @@ def get_address_pubkeyhash(cli_path, vkey_path):
     return p
 
 def get_smartcontract_addr(profile_name, smartcontract_path):
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     func = [
         s[profile_name]['cli_path'],
         'address',
         'build',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--payment-script-file',
         smartcontract_path
     ]
@@ -175,11 +178,14 @@ def log_new_txs(profile_name, api_id, wallet_addr):
             pass
         
     # Get UTXO Info
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     rawUtxoTable = subprocess.check_output([
         s[profile_name]['cli_path'],
         'query',
         'utxo',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--address',
         wallet_addr
     ])
@@ -340,11 +346,14 @@ def clean_folder(profile_name):
         remove(f)
 
 def proto(profile_name):
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     func = [
         s[profile_name]['cli_path'],
         'query',
         'protocol-parameters',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--out-file',
         s[profile_name]['cache'] + 'protocol.json'
     ]
@@ -352,11 +361,14 @@ def proto(profile_name):
     p.communicate()
 
 def get_utxo(profile_name, token_wallet, file_name):
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     func = [
         s[profile_name]['cli_path'],
         'query',
         'utxo',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--address',
         token_wallet,
         '--out-file',
@@ -436,13 +448,16 @@ def get_txin(profile_name, file_name, collateral, spendable=False, allowed_datum
     return txin_list, txincollat_list, amount, True, data_list
 
 def get_tip(profile_name):
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     cache = s[profile_name]['cache']
     add_slots = 1000
     func = [
         s[profile_name]['cli_path'],
         'query',
         'tip',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--out-file',
         cache + 'latest_tip.json'
     ]
@@ -456,13 +471,16 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
     # Begin log file
     cache = s[profile_name]['cache']
     runlog_file = s[profile_name]['log'] + 'run.log'
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'build',
         '--alonzo-era',
         '--cardano-mode',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--protocol-params-file',
         cache+'protocol.json',
         '--change-address',
@@ -490,13 +508,16 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
 def sign_tx(profile_name, witnesses, filePre):
     # Begin log file
     runlog_file = s[profile_name]['log'] + 'run.log'
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'sign',
         '--tx-body-file',
         s[profile_name]['cache'] + 'tx.draft',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--tx-file',
         s[profile_name]['txlog'] + filePre + 'tx.signed'
     ]
@@ -507,12 +528,15 @@ def sign_tx(profile_name, witnesses, filePre):
 def submit_tx(profile_name, filePre):
     # Begin log file
     runlog_file = s[profile_name]['log'] + 'run.log'
+    network = 'mainnet'
+    if s[profile_name]['network'] == 'testnet-magic':
+        network = s[profile_name]['network'] + ' ' + s[profile_name]['magic']
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'submit',
         '--cardano-mode',
-        '--' + s[profile_name]['network'], s[profile_name]['magic'],
+        '--' + network,
         '--tx-file',
         s[profile_name]['txlog'] + filePre + 'tx.signed',
     ]
