@@ -397,6 +397,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     WATCH_ADDR_INPUT = ''
     COLLATERAL_INPUT = ''
     CHECK_INPUT = ''
+    WLENABLED_INPUT = ''
     WHITELIST_ONCE_INPUT = ''
     WATCH_SKEY_PATH_INPUT = ''
     WATCH_VKEY_PATH_INPUT = ''
