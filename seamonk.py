@@ -493,6 +493,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     COLLATSTRING = inputp('\nAmount Of Lovelace Collateral To Include\n(required for smartcontract tx, usually 2000000)\n >Collateral Amount in Lovelace:', str(COLLATERAL_INPUT))
     CHECKSTRING = inputp('\nCheck for Transactions Simultaneously?\n(Recommended: True - if set to false you will need to run a seperate instance of seamonk.py with the option "get_transactions" for getting transactions)\n >Enter True or False:', str(CHECK_INPUT))
     WLENABLEDSTRING = inputp('\nUse a whitelist?\n(if false, any payment received to the watched address will be checked for matching amount params)\n >Enter True or False:', str(WLENABLED_INPUT))
+    WLONESTRING = 'False'
     if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
         WLONESTRING = inputp('\nRemove A Sender Address From Whitelist After 1 Payment is Received?\n >Enter True or False:', str(WHITELIST_ONCE_INPUT))
     print('\n\nAfter this setup and any smart-contract generating, you will need to deposit into the smart contract by running: "python3 seamonk.py --option deposit". The following inputs are related to deposits. For auto-replenishing a smart-contract wherein you are sending a large amount to be processed in smaller batches, the token quantity you enter in the following input, will apply to each deposit replenish attempt.\n\n')
