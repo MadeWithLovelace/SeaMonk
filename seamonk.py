@@ -316,7 +316,7 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
         tx_hash = 'error'
     return tx_hash
 
-def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, check_price, collateral):
+def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, check_price, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
 
@@ -352,6 +352,8 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     filePre = 'depositSC_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
     tx_hash = deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral, filePre)
     print('\nDeposit is processing . . . ')
+    tx.log_new_txs(profile_name, api_id, watch_addr)
+    sleep(2)
     tx_hash = tx_hash.strip()
     tx_flag = False
     while not tx_flag:
@@ -403,6 +405,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     WATCH_VKEY_PATH_INPUT = ''
     WATCH_KEY_HASH_INPUT = ''
     SMARTCONTRACT_PATH_INPUT = ''
+    SC_ADDR = ''
     TOKEN_POLICY_ID_INPUT = ''
     TOKEN_NAME_INPUT = ''
     EXPECT_ADA_INPUT = ''
@@ -438,6 +441,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WATCH_VKEY_PATH_INPUT = PROFILE['watchvkey']
         WATCH_KEY_HASH_INPUT = PROFILE['watchkeyhash']
         SMARTCONTRACT_PATH_INPUT = PROFILE['scpath']
+        SC_ADDR = PROFILE['scaddr']
         TOKEN_POLICY_ID_INPUT = PROFILE['tokenid']
         TOKEN_NAME_INPUT = PROFILE['tokenname']
         EXPECT_ADA_INPUT = PROFILE['expectada']
@@ -521,6 +525,9 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     WATCH_KEY_HASH = tx.get_address_pubkeyhash(CLI_PATH, WATCH_VKEY_PATH)
     if len(SMARTCONTRACT_PATH) == 0:
         SMARTCONTRACT_PATH = log + UNIQUE_NAME + '.plutus'
+    else:
+        SC_ADDR = tx.get_smartcontract_addr(profile_name, SMARTCONTRACT_PATH)
+
     NETWORK = 'mainnet'
     MAGIC = ''
     API_URI = 'https://cardano-' + NETWORKINPUT + '.blockfrost.io/api/v0/'
@@ -549,7 +556,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         AUTO_REFUND = True
 
     # Save to dictionary
-    rawSettings = {'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+    rawSettings = {'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -716,7 +723,7 @@ if __name__ == "__main__":
             if EXPECT_ADA != PRICE:
                 CHECK_PRICE = int(PRICE)
                 print('\nTo check if price amount in wallet: ' + str(CHECK_PRICE))
-            start_deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL)
+            start_deposit(PROFILE_NAME, API_ID, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL)
         
         if OPTION_PASSED == 'replenish':
             # May be unneeded

@@ -241,6 +241,8 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
     runlog_file = log + 'run.log'
 
     # Setup file
+    watch_addr = s[profile_name]['watchaddr']
+    sc_addr = s[profile_name]['scaddr']
     amount = int(amount)
     min_watch = int(min_watch)
     compare_addr = True
@@ -296,6 +298,8 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                 if tx_hash in line:
                     flag = 1
                     break
+            if tx_addr == watch_addr or tx_addr == sc_addr:
+                flag = 1
             if flag == 1:
                 continue
             if flag == 0:
