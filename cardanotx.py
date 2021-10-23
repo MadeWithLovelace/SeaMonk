@@ -1,11 +1,11 @@
 #!/usr/bin/python
 import os
-import datetime
 import subprocess
 import json
 import hashlib
 import base64
 import requests
+from time import sleep, strftime, gmtime
 
 #Load Settings
 settings_file = os.path.join(os.path.realpath(os.path.dirname(__file__)), '') + 'profile.json'
@@ -211,7 +211,6 @@ def log_new_txs(profile_name, api_id, wallet_addr):
                 # Check if hash found at api
                 if 'status_code' in tx_result.json():
                     status_code = tx_result.json()['status_code']
-                    #print("\nStatus Code found in result: " + status_code)
                     txlog_a.close()
                     continue
                 for tx_data in tx_result.json()['inputs']:
@@ -226,7 +225,7 @@ def log_new_txs(profile_name, api_id, wallet_addr):
                 txlog_a.close()
             txlog_r.close()
     return txcount
-    
+
 def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch = 0, sender_addr = 'none'):
     """
     Checks for an expected amount of ADA from any address in a whitelist (or specific passed) and maintains a log of expected and any other present UTxO payments in profile-specific payments.log file
@@ -478,8 +477,8 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
     func += utxo_out
     func += tx_data
     with open(runlog_file, 'a') as runlog:
-        time_now = datetime.datetime.now()
-        runlog.write('\nTX at: ' + str(time_now))
+        time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+        runlog.write('\nTX at: ' + time_now)
         runlog.write('\n-----------------TX Built--------------------\n')
         joined_func = ' '.join(func)
         runlog.write(joined_func)

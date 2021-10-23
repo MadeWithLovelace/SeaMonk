@@ -1,13 +1,42 @@
 import os
 import readline
 import subprocess
-import time
-import datetime
 import json
 import cardanotx as tx
 import getopt
+import shutil
+import time
 from sys import exit, argv
 from os.path import isdir, isfile
+from time import sleep, strftime, gmtime
+from threading import Timer
+
+class runTimed(object):
+    def __init__(self, interval, function, *args, **kwargs):
+        self._timer = None
+        self.interval = interval
+        self.function = function
+        self.args = args
+        self.kwargs = kwargs
+        self.is_running = False
+        self.next_call = time.time()
+        self.start()
+
+    def _run(self):
+        self.is_running = False
+        self.start()
+        self.function(*self.args, **self.kwargs)
+
+    def start(self):
+        if not self.is_running:
+            self.next_call += self.interval
+            self._timer = Timer(self.next_call - time.time(), self._run)
+            self._timer.start()
+            self.is_running = True
+
+    def stop(self):
+        self._timer.cancel()
+        self.is_running = False
 
 def inputp(prompt, text):
     def hook():
@@ -44,7 +73,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
                 exit(0)
 
     if not flag: # TODO: Test with different tokens at bridge wallet
-        filePreCollat = 'collatRefill_' + str(datetime.datetime.now()) + '_'
+        filePreCollat = 'collatRefill_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
         if not replenish:
             print("No collateral UTxO found! Attempting to create...")
         _, until_tip, block = tx.get_tip(profile_name)
@@ -73,7 +102,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         tx_hash_collat = tx_hash_collat.strip()
         tx_collat_flag = False
         while not tx_collat_flag:
-            time.sleep(5)
+            sleep(5)
             tx_collat_flag = tx.check_for_tx(profile_name, tx_hash_collat)
     
     # Build, sign, and send transaction
@@ -320,13 +349,13 @@ def start_deposit(profile_name, log, cache, watch_addr, watch_skey_path, watch_v
     FINGERPRINT = tx.get_token_identifier(token_policy_id, token_name) # Not real fingerprint but works
     DATUM_HASH  = tx.get_hash_value(profile_name, '"{}"'.format(FINGERPRINT)).replace('\n', '')
     #print('Datum Hash: ', DATUM_HASH)
-    filePre = 'depositSC_' + str(datetime.datetime.now()) + '_'
+    filePre = 'depositSC_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
     tx_hash = deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral, filePre)
     print('\nDeposit is processing . . . ')
     tx_hash = tx_hash.strip()
     tx_flag = False
     while not tx_flag:
-        time.sleep(5)
+        sleep(5)
         tx_flag = tx.check_for_tx(profile_name, tx_hash)
     print('\nDeposit Completed!')
 
@@ -347,7 +376,7 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     approot = os.path.realpath(os.path.dirname(__file__))
     os.chdir(src)
     print("\nPlease wait while your SmartContract source is being compiled, this may take a few minutes . . .\n\n")
-    time.sleep(5)
+    sleep(5)
     data_build = subprocess.call(['cabal', 'build'], stdout = subprocess.PIPE)
     print('\nGenerating SmartContract Plutus Script . . .')
     data_run = subprocess.call(['cabal', 'run'], stdout = subprocess.PIPE)
@@ -402,6 +431,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WATCH_ADDR_INPUT = PROFILE['watchaddr']
         COLLATERAL_INPUT = PROFILE['collateral']
         CHECK_INPUT = PROFILE['check']
+        WLENABLED_INPUT = PROFILE['wlenabled']
         WHITELIST_ONCE_INPUT = PROFILE['wlone']
         WATCH_SKEY_PATH_INPUT = PROFILE['watchskey']
         WATCH_VKEY_PATH_INPUT = PROFILE['watchvkey']
@@ -460,8 +490,10 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         TOKEN_QTY = inputp('\nStatic Token Quantity To Be Sent In Each Swap Transaction\n(how many tokens to send with each successful matched transaction swap)\n >Token Amount To Swap Per TX:', TOKEN_QTY_INPUT)
     PRICE = inputp('\nPrice If Any To Be Paid To Watch Address\n(this is not the amount being watched for)\n >Price Amount in Lovelace:', PRICE_INPUT)
     COLLATSTRING = inputp('\nAmount Of Lovelace Collateral To Include\n(required for smartcontract tx, usually 2000000)\n >Collateral Amount in Lovelace:', str(COLLATERAL_INPUT))
-    CHECKSTRING = inputp('\nCheck for Transactions In Same Instance, Between Payment Processing?\n(Recommended: False - and run a seperate instance for getting transactions)\n >Enter True or False:', str(CHECK_INPUT))
-    WLONESTRING = inputp('\nRemove A Sender Address From Whitelist After 1 Payment is Received?\n >Enter True or False:', str(WHITELIST_ONCE_INPUT))
+    CHECKSTRING = inputp('\nCheck for Transactions Simultaneously?\n(Recommended: True - if set to false you will need to run a seperate instance of seamonk.py with the option "get_transactions" for getting transactions)\n >Enter True or False:', str(CHECK_INPUT))
+    WLENABLEDSTRING = inputp('\nUse a whitelist?\n(if false, any payment received to the watched address will be checked for matching amount params)\n >Enter True or False:', str(WLENABLED_INPUT))
+    if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
+        WLONESTRING = inputp('\nRemove A Sender Address From Whitelist After 1 Payment is Received?\n >Enter True or False:', str(WHITELIST_ONCE_INPUT))
     print('\n\nAfter this setup and any smart-contract generating, you will need to deposit into the smart contract by running: "python3 seamonk.py --option deposit". The following inputs are related to deposits. For auto-replenishing a smart-contract wherein you are sending a large amount to be processed in smaller batches, the token quantity you enter in the following input, will apply to each deposit replenish attempt.\n\n')
     DEPOSIT_AMNT = inputp('\nQuantity of Tokens You Will Deposit\n(you can enter a batch amount, when it runs low the app will try to replenish with the same batch amount)\n >Quantity of ' + TOKEN_NAME +' Tokens to Deposit:', DEPOSIT_AMNT_INPUT)
     RECURRINGSTRING = inputp('\nIs This A Recurring Amount?\n(type True or False)\n >Recurring Deposit? ', str(RECURRINGSTRING_INPUT))
@@ -499,12 +531,14 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         FEE_CHARGEINPUT = "500000"
     FEE_CHARGE = int(FEE_CHARGEINPUT)
     CHECK = False
-    USE_WHITELIST = False
+    WLENABLED = False
     WHITELIST_ONCE = False
     RECURRING = False
     AUTO_REFUND = False
     if CHECKSTRING == 'True' or CHECKSTRING == 'true':
         CHECK = True
+    if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
+        WLENABLED = True
     if WLONESTRING == 'True' or WLONESTRING == 'true':
         WHITELIST_ONCE = True
     if RECURRINGSTRING == 'True' or RECURRINGSTRING == 'true':
@@ -513,7 +547,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         AUTO_REFUND = True
 
     # Save to dictionary
-    rawSettings = {'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+    rawSettings = {'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -542,14 +576,27 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     if not is_wl_file:
         try:
             open(whitelist_file, 'x')
+            if not WLENABLED:
+                with open(whitelist_file, 'w') as wl_header:
+                    wl_header.write('none')
+                    wl_header.close()
         except OSError:
             pass
+    else:
+        if not WLENABLED:
+            whitelist_bak = log + 'whitelist.bak-' + strftime("%Y-%m-%d_%H-%M-%S", gmtime())
+            shutil.copyfile(whitelist_file, whitelist_bak)
+            with open(whitelist_file, 'w') as wl_header:
+                wl_header.write('none')
+                wl_header.close()
 
     print('\n\n=========================     Profile Saved      =========================\nIf using more than 1 profile, run with this explicit profile with option\n"--profile ' + UNIQUE_NAME + '" e.g. `python3 seamonk.py --profile ' + UNIQUE_NAME + '`.\n\nExiting . . . \n')
     exit(0)
 
-
 if __name__ == "__main__":
+    # Set default program mode to running = True
+    running = True
+
     # Get user options
     arguments = argv[1:]
     shortopts= "svo"
@@ -599,6 +646,7 @@ if __name__ == "__main__":
     WATCH_ADDR = PROFILE['watchaddr']
     COLLATERAL = PROFILE['collateral']
     CHECK = PROFILE['check']
+    WLENABLED = PROFILE['wlenabled']
     WHITELIST_ONCE = PROFILE['wlone']
     WATCH_SKEY_PATH = PROFILE['watchskey']
     WATCH_VKEY_PATH = PROFILE['watchvkey']
@@ -639,8 +687,8 @@ if __name__ == "__main__":
         except OSError:
             pass
     with open(runlog_file, 'a') as runlog:
-        time_now = datetime.datetime.now()
-        runlog.write('\n===============================\n          New Run at: ' + str(time_now) + '\n===============================\n')
+        time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+        runlog.write('\n===============================\n          New Run at: ' + time_now + '\n===============================\n')
         runlog.close()
 
     # Check for smartcontract file and prompt to create if not found
@@ -659,9 +707,7 @@ if __name__ == "__main__":
             create_smartcontract(PROFILE_NAME, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
 
         if OPTION_PASSED == 'get_transactions':
-            while True:
-                result_tx = tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
-                time.sleep(5)
+            running = False
 
         if OPTION_PASSED == 'deposit':
             CHECK_PRICE = 0
@@ -693,21 +739,17 @@ if __name__ == "__main__":
     """
     # END
 
+    # Start get_transactions thread
+    if CHECK or running == False:
+        runTimed(2, tx.log_new_txs, PROFILE_NAME, API_ID, WATCH_ADDR)
+
     # Begin main payment checking/recording loop here
-    while True:
-        time.sleep(10)
-
-        # Check for payment, initiate Smart Contract on success
-        # Only run payment check if new transactions are recorded
-        if CHECK:
-            result_tx = tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
-            with open(runlog_file, 'a') as runlog:
-                runlog.write('\nNew txs to compare: '+str(result_tx)+'\n')
-                runlog.close()
-        
-        time.sleep(10)
+    while running:
+        """
+        Main loop: Check for payment, initiate Smart Contract on success
+        """
+        sleep(5) # Small Delay Improves CPU usage
         result = 'none'
-
         whitelist_file = PROFILELOG + 'whitelist.txt'
         is_whitelist_file = os.path.isfile(whitelist_file)
         if not is_whitelist_file:
@@ -718,8 +760,10 @@ if __name__ == "__main__":
             exit(0)
         whitelist_r = open(whitelist_file, 'r')
         windex = 0
+        
         # Foreach line of the whitelist file
         for waddr in whitelist_r:
+            # Check if whitelist is empty and end app if it is
             windex += 1
             if not EXPECT_ADA:
                 EXPECT_ADA = 0
@@ -728,6 +772,7 @@ if __name__ == "__main__":
             if len(result) < 1:
                 continue
             RESLIST = result.split(',')
+            RECIPIENT_ADDR = RESLIST[1]
             ADA_RECVD = int(RESLIST[2])
             with open(runlog_file, 'a') as runlog:
                 runlog.write('\n===== Matching TX: '+str(result)+' =====')
@@ -768,7 +813,7 @@ if __name__ == "__main__":
                         with open(runlog_file, 'a') as runlog:
                             runlog.write('\nRefunding: '+str(REFUND_AMNT))
                             runlog.close()
-                        filePre = 'refundTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
+                        filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                         tx_refund_a_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
                         # Check for tx to complete
@@ -778,10 +823,10 @@ if __name__ == "__main__":
                         tx_refund_a_hash = tx_refund_a_hash.strip()
                         tx_refund_a_flag = False
                         while not tx_refund_a_flag:
-                            time.sleep(5)
+                            sleep(5)
                             tx_refund_a_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_a_hash)
 
-                        # Record the payment as completed
+                        # Record the payment as completed, leave whitelist untouched since not a valid swap tx
                         with open(runlog_file, 'a') as runlog:
                             runlog.write('\nHash found, TX completed. Writing to payments.log...')
                             runlog.close()
@@ -789,6 +834,7 @@ if __name__ == "__main__":
                         with open(payments_file, 'a') as payments_a:
                             payments_a.write(result + '\n')
                             payments_a.close()
+                    sleep(5)
                     continue
                 
                 # Refresh Low SC Balance
@@ -802,7 +848,7 @@ if __name__ == "__main__":
                         with open(runlog_file, 'a') as runlog:
                             runlog.write('Price set as: '+str(CHECK_PRICE))
                             runlog.close()
-                    filePre = 'replenishSC_' + str(datetime.datetime.now()) + '_'
+                    filePre = 'replenishSC_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                     tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, TOKENS_TOSWAP, RECIPIENT_ADDR, True)
 
                     with open(runlog_file, 'a') as runlog:
@@ -813,17 +859,31 @@ if __name__ == "__main__":
                     tx_rsc_hash = tx_rsc_hash.strip()
                     tx_rsc_flag = False
                     while not tx_rsc_flag:
-                        time.sleep(5)
+                        sleep(5)
                         tx_rsc_flag = tx.check_for_tx(PROFILE_NAME, tx_rsc_hash)
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nReplenish-SC TX Hash Found: '+tx_rsc_hash)
                         runlog.close()
 
-                    # Record the payment as completed
+                    # Record the payment as completed and remove from whitelist if set to true
                     payments_file = PROFILELOG + 'payments.log'
                     with open(payments_file, 'a') as payments_a:
                         payments_a.write(result + '\n')
                         payments_a.close()
+                    
+                    # Remove from whitelist if necessary
+                    if WLENABLED and WHITELIST_ONCE:
+                        clean_wlws = RECIPIENT_ADDR
+                        with open(whitelist_file,'r') as read_file:
+                            lines = read_file.readlines()
+                        currentLine = 0
+                        with open(whitelist_file,'w') as write_file:
+                            for line in lines:
+                                if line.strip('\n') != clean_wlws:
+                                    write_file.write(line)
+                        read_file.close()
+                        write_file.close()
+                    sleep(5)
                     continue
                 else:
                     with open(runlog_file, 'a') as runlog:
@@ -834,14 +894,14 @@ if __name__ == "__main__":
                         with open(runlog_file, 'a') as runlog:
                             runlog.write('\nSending Refund: '+str(REFUND_AMNT))
                             runlog.close()
-                        filePre = 'refundTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
+                        filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                         tx_refund_b_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
                         # Wait for transaction to clear...
                         tx_refund_b_hash = tx_refund_b_hash.strip()
                         tx_refund_b_flag = False
                         while not tx_refund_b_flag:
-                            time.sleep(5)
+                            sleep(5)
                             tx_refund_b_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_b_hash)
                         with open(runlog_file, 'a') as runlog:
                             runlog.write('\nRefund TX Hash Found: '+tx_refund_b_hash)
@@ -852,20 +912,21 @@ if __name__ == "__main__":
                     with open(payments_file, 'a') as payments_a:
                         payments_a.write(result + '\n')
                         payments_a.close()
+                    sleep(5)
                     continue
 
             # Run swap on matched tx
             with open(runlog_file, 'a') as runlog:
                 runlog.write('\nProcess this TX Swap: '+RECIPIENT_ADDR+' | tokens:'+str(TOKENS_TOSWAP)+' | ada:'+str(ADA_RECVD))
                 runlog.close()
-            filePre = 'swapTO' + RECIPIENT_ADDR + '_' + str(datetime.datetime.now()) + '_'
+            filePre = 'swapTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
             tx_sc_hash = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKENS_TOSWAP), RETURN_ADA, PRICE, COLLATERAL, filePre)
             if tx_sc_hash != 'error':
                 # Wait for swap to clear...
                 tx_sc_hash = tx_sc_hash.strip()
                 tx_sc_flag = False
                 while not tx_sc_flag:
-                    time.sleep(5)
+                    sleep(5)
                     tx_sc_flag = tx.check_for_tx(PROFILE_NAME, tx_sc_hash)
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nSmartContract Swap TX Hash Found: '+tx_sc_hash)
@@ -876,7 +937,7 @@ if __name__ == "__main__":
                 with open(payments_file, 'a') as payments_a:
                     payments_a.write(result + '\n')
                     payments_a.close()
-                if WHITELIST_ONCE:
+                if WLENABLED and WHITELIST_ONCE:
                     clean_wlws = RECIPIENT_ADDR
                     with open(whitelist_file,'r') as read_file:
                         lines = read_file.readlines()
@@ -887,7 +948,7 @@ if __name__ == "__main__":
                                 write_file.write(line)
                     read_file.close()
                     write_file.close()
-                time.sleep(10)
+                sleep(5)
             else:
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nSC Swap Failed: '+RECIPIENT_ADDR+' | '+str(TOKENS_TOSWAP)+' | '+str(ADA_RECVD))
