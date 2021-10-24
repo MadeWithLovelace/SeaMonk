@@ -13,6 +13,31 @@ is_settings_file = os.path.isfile(settings_file)
 if is_settings_file:
     s = json.load(open(settings_file, 'r'))
 
+def set_vars(profile_name):
+    # Defaults and overrides
+    if type(profile_name) is list:
+        cli = profile_name[0]
+        network = profile_name[1]
+        magic = profile_name[2]
+        log = profile_name[3]
+        txlog = profile_name[4]
+        cache = profile_name[5]
+        if network == 'testnet-magic':
+            testnet = True
+        else:
+            testnet = False
+    else:
+        log = s[profile_name]['log']
+        txlog = s[profile_name]['txlog']
+        cache = s[profile_name]['cache']
+        cli = s[profile_name]['cli_path']
+        network = s[profile_name]['network']
+        magic = s[profile_name]['magic']
+        testnet = False
+        if network == 'testnet-magic':
+            testnet = True
+    return cli, network, magic, log, cache, txlog, testnet
+
 def get_token_identifier(policy_id, token_name):
     """
     Takes the blake2b hash of the concat of the policy ID and token name.
@@ -25,19 +50,23 @@ def get_token_identifier(policy_id, token_name):
     return h.hexdigest()
 
 def get_tx_hash(profile_name, filePre):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'transaction',
         'txid',
         '--tx-file',
-        s[profile_name]['txlog'] + filePre + 'tx.signed'
+        txlog + filePre + 'tx.signed'
     ]
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
 def get_hash_value(profile_name, value):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'transaction',
         'hash-script-data',
         '--script-data-value',
@@ -47,7 +76,8 @@ def get_hash_value(profile_name, value):
     return p
 
 def process_tokens(profile_name, tokens, wallet_addr, amnt='all', return_ada='2000000', exclude='', flag=True):
-    cache = s[profile_name]['cache']
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     if len(tokens) > 1:
         utxo_string = get_utxo_string(tokens, amnt, exclude, flag)
         if len(utxo_string) != 0:
@@ -59,8 +89,10 @@ def process_tokens(profile_name, tokens, wallet_addr, amnt='all', return_ada='20
         return []
 
 def find_min(profile_name, cache, utxo_string):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'transaction',
         'calculate-min-value',
         '--protocol-params-file',
@@ -107,17 +139,48 @@ def get_address_pubkeyhash(cli_path, vkey_path):
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
-def get_smartcontract_addr(profile_name, smartcontract_path):
+def get_token_id(profile_name, out_script):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
+        'transaction',
+        'policyid',
+        '--script-file',
+        out_script
+    ]
+    p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
+    return p
+
+def get_wallet_addr(profile_name, vkey_path):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+    func = [
+        cardano_cli,
         'address',
         'build',
-        '--' + s[profile_name]['network'],
+        '--' + network,
+        '--payment-verification-key-file',
+        vkey_path
+    ]
+    if testnet:
+        func.insert(4, magic)
+    p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
+    return p
+
+def get_smartcontract_addr(profile_name, smartcontract_path):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+    func = [
+        cardano_cli,
+        'address',
+        'build',
+        '--' + network,
         '--payment-script-file',
         smartcontract_path
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(4, s[profile_name]['magic'])
+    if testnet:
+        func.insert(4, magic)
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
@@ -125,8 +188,10 @@ def check_for_tx(profile_name, tx_hash_match):
     """
     Checks for a matching transaction
     """
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    log = s[profile_name]['log']
     runlog_file = log + 'run.log'
     txlog_file = log + 'transactions.log'
     is_txlog_file = os.path.isfile(txlog_file)
@@ -159,8 +224,10 @@ def log_new_txs(profile_name, api_id, wallet_addr):
     """
     Checks for new transactions and maintains a log of tx_hashes at seamonk-data/transactions.log, returns new tx count integer
     """
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    log = s[profile_name]['log']
     runlog_file = log + 'run.log'
 
     # Setup file
@@ -178,15 +245,15 @@ def log_new_txs(profile_name, api_id, wallet_addr):
         
     # Get UTXO Info
     tx_list = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'query',
         'utxo',
-        '--' + s[profile_name]['network'],
+        '--' + network,
         '--address',
         wallet_addr
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        tx_list.insert(4, s[profile_name]['magic'])
+    if testnet:
+        tx_list.insert(4, magic)
     rawUtxoTable = subprocess.check_output(tx_list)
     # Output rows
     utxoTableRows = rawUtxoTable.strip().splitlines()
@@ -235,8 +302,10 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
     """
     Checks for an expected amount of ADA from any address in a whitelist (or specific passed) and maintains a log of expected and any other present UTxO payments in profile-specific payments.log file
     """
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    log = s[profile_name]['log']
     runlog_file = log + 'run.log'
 
     # Setup file
@@ -342,46 +411,54 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
     return return_data
 
 def clean_folder(profile_name):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     from os import remove
     from glob import glob
-    files = glob(s[profile_name]['cache'] + '*')
+    files = glob(cache + '*')
     for f in files:
         remove(f)
 
 def proto(profile_name):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'query',
         'protocol-parameters',
-        '--' + s[profile_name]['network'],
+        '--' + network,
         '--out-file',
-        s[profile_name]['cache'] + 'protocol.json'
+        cache + 'protocol.json'
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(4, s[profile_name]['magic'])
+    if testnet:
+        func.insert(4, magic)
     p = subprocess.Popen(func)
     p.communicate()
 
 def get_utxo(profile_name, token_wallet, file_name):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'query',
         'utxo',
-        '--' + s[profile_name]['network'],
+        '--' + network,
         '--address',
         token_wallet,
         '--out-file',
-        s[profile_name]['cache'] + file_name
+        cache + file_name
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(4, s[profile_name]['magic'])
+    if testnet:
+        func.insert(4, magic)
     p = subprocess.Popen(func)
     p.communicate()
 
-def get_txin(profile_name, file_name, collateral, spendable=False, allowed_datum='', check_amnt=0):
+def get_txin(profile_name, file_name, collateral, spendable = False, allowed_datum = '', check_amnt = 0):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    cache = s[profile_name]['cache']
-    runlog_file = s[profile_name]['log'] + 'run.log'
+    runlog_file = log + 'run.log'
     if check_amnt > 0:
         check_amnt = int(check_amnt)
     check_price_found = False
@@ -448,36 +525,38 @@ def get_txin(profile_name, file_name, collateral, spendable=False, allowed_datum
         return txin_list, txincollat_list, amount, False, data_list
     return txin_list, txincollat_list, amount, True, data_list
 
-def get_tip(profile_name):
-    cache = s[profile_name]['cache']
-    add_slots = 1000
+def get_tip(profile_name, add_slots = 1000):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'query',
         'tip',
-        '--' + s[profile_name]['network'],
+        '--' + network,
         '--out-file',
         cache + 'latest_tip.json'
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(4, s[profile_name]['magic'])
+    if testnet:
+        func.insert(4, magic)
     p = subprocess.Popen(func)
     p.communicate()
     with open(cache+"latest_tip.json", "r") as tip_data:
         td = json.load(tip_data)
     return int(td['slot']), int(td['slot']) + add_slots, int(td['block'])
 
-def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, tx_data):
+def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, tx_data, manual = False):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    cache = s[profile_name]['cache']
-    runlog_file = s[profile_name]['log'] + 'run.log'
+    runlog_file = log + 'run.log'
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'transaction',
         'build',
         '--alonzo-era',
         '--cardano-mode',
-        '--' + s[profile_name]['network'],
+        '--' + network,
         '--protocol-params-file',
         cache+'protocol.json',
         '--change-address',
@@ -487,12 +566,25 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
         '--out-file',
         cache+'tx.draft'
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(6, s[profile_name]['magic'])
+    if testnet:
+        func.insert(6, magic)
     func += utxo_in
     func += utxo_col
     func += utxo_out
     func += tx_data
+    if manual:
+        print('\n================================= TX Built =================================')
+        print('\nCheck transaction details and approve before submitting to the blockchain:\n')
+        print('\n----------------------------------------------------------------------------')
+        joined_func_out = ' '.join(func)
+        print(joined_func_out)
+        print('\n----------------------------------------------------------------------------')
+        VALUES_CORRECT = input('\n\nMint this? (enter yes or no):')
+        if VALUES_CORRECT == ('yes'):
+            print('\n\nContinuing . . . \n')
+        else:
+            print('\n\nQuitting . . .\n\n')
+            exit(0)
     with open(runlog_file, 'a') as runlog:
         time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
         runlog.write('\nTX at: ' + time_now)
@@ -505,37 +597,43 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
     p.communicate()
 
 def sign_tx(profile_name, witnesses, filePre):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    runlog_file = s[profile_name]['log'] + 'run.log'
+    runlog_file = log + 'run.log'
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'transaction',
         'sign',
         '--tx-body-file',
-        s[profile_name]['cache'] + 'tx.draft',
-        '--' + s[profile_name]['network'],
+        cache + 'tx.draft',
+        '--' + network,
         '--tx-file',
-        s[profile_name]['txlog'] + filePre + 'tx.signed'
+        txlog + filePre + 'tx.signed'
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(6, s[profile_name]['magic'])
+    if testnet:
+        func.insert(6, magic)
     func += witnesses
     p = subprocess.Popen(func)
     p.communicate()
 
 def submit_tx(profile_name, filePre):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
     # Begin log file
-    runlog_file = s[profile_name]['log'] + 'run.log'
+    runlog_file = log + 'run.log'
     func = [
-        s[profile_name]['cli_path'],
+        cardano_cli,
         'transaction',
         'submit',
         '--cardano-mode',
-        '--' + s[profile_name]['network'],
+        '--' + network,
         '--tx-file',
-        s[profile_name]['txlog'] + filePre + 'tx.signed',
+        txlog + filePre + 'tx.signed',
     ]
-    if s[profile_name]['network'] == 'testnet-magic':
-        func.insert(5, s[profile_name]['magic'])
+    if testnet:
+        func.insert(5, magic)
     p = subprocess.Popen(func)
     p.communicate()

@@ -316,6 +316,83 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
         tx_hash = 'error'
     return tx_hash
 
+def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey_path, nft_addr, return_ada, nft_data, collateral, filePre, manual = False):
+    # Assign vars from list
+    nft_name = nft_data[0]
+    nft_meta = nft_data[1]
+    nft_tip = int(nft_data[2])
+    nft_policy = nft_data[3]
+
+    # Begin log file
+    runlog_file = log + 'run.log'
+
+    # Clear the cache
+    tx.clean_folder(profile_name)
+    tx.proto(profile_name)
+    tx.get_utxo(profile_name, mint_addr, 'utxo.json')
+
+    # Get locking tip
+    if nft_tip < 900:
+        print('\nLocking tip is too soon! To ensure minting completes in time, please try again with a tip  of 900 (15 min) or higher')
+        exit(0)
+    _, until_tip, block = tx.get_tip(profile_name, nft_tip)
+
+    # Setup NFT files
+    template_script = src + 'template.script'
+    out_script = log + nft_name + '.script'
+    out_json = log + nft_name + '.json'
+    out_id = log + nft_name + '.id'
+
+    # Save policy file
+    with open(template_script, 'r') as script:
+        scriptData = script.read()
+        script.close()
+    scriptData = scriptData.replace('0fff0', ' '.join(nft_policy.split()))
+    scriptData = scriptData.replace('1111', ' '.join(str(until_tip).split()))
+    with open(out_script, 'w') as scriptout:
+        scriptout.write(scriptData)
+        scriptout.close()
+
+    # Generate and output Policy ID
+    nft_id = tx.get_token_id(profile_name, out_script).strip()
+    with open(out_id, 'w') as outid:
+        outid.write(nft_id)
+        outid.close()
+    nft_asset = nft_id + '.' + nft_name
+    
+    # Generate and save NFT json file
+    if manual:
+        nft_meta = json.loads('{'+nft_meta+'}')
+    json_list = {"721":{nft_id:{nft_name:nft_meta}}}
+    json_save = json.dumps(json_list)
+    with open(out_json, 'w') as nftJSON:
+        nftJSON.write(json_save)
+        nftJSON.close()
+    
+    # Run get_txin
+    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(profile_name, 'utxo.json', collateral)
+    
+    # Build, Sign, and Send NFT Minting TX
+    tx_out = tx.process_tokens(profile_name, tokens, mint_addr) # Change
+    tx_out += ['--tx-out', nft_addr + '+' + return_ada + '+' + '1 ' + nft_asset] # Send NFT to winner
+
+    tx_data = [
+        '--mint=1 ' + nft_asset,
+        '--minting-script-file', log + nft_name + '.script',
+        '--metadata-json-file', log + nft_name + '.json'
+    ]        
+    tx.build_tx(profile_name, mint_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data, manual)    
+    witnesses = [
+        '--signing-key-file',
+        wallet_skey_path,
+        '--signing-key-file',
+        policy_skey_path
+    ]
+    tx.sign_tx(profile_name, witnesses, filePre)
+    tx.submit_tx(profile_name, filePre)
+    tx_hash = tx.get_tx_hash(profile_name, filePre)
+    return tx_hash
+
 def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, check_price, collateral):
     # Begin log file
     runlog_file = log + 'run.log'
@@ -361,9 +438,9 @@ def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path,
         tx_flag = tx.check_for_tx(profile_name, tx_hash)
     print('\nDeposit Completed!')
 
-def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
+def create_smartcontract(profile_name, approot, sc_path, src, pubkeyhash, price):
     # Load settings to modify
-    settings_file = 'profile.json'
+    settings_file = approot + 'profile.json'
     # Load settings
     load_profile = json.load(open(settings_file, 'r'))
     if len(profile_name) == 0:
@@ -399,6 +476,9 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     WT_ADA_AMNT = PROFILE['wt_ada_amnt']
     AUTO_REFUND = PROFILE['auto_refund']
     FEE_CHARGE = PROFILE['fee_to_charge']
+    NFT_NAME_INPUT = PROFILE['nft_name']
+    NFT_META_INPUT = PROFILE['nft_meta']
+    NFT_SKEY_INPUT = PROFILE['nft_skey']
 
     # Replace the validator options
     template_src = src + 'src/' + 'template_SwapToken.hs'
@@ -428,10 +508,9 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
     SC_ADDR = tx.get_smartcontract_addr(profile_name, sc_path)
 
     # Save to dictionary
-    rawSettings = {'log':LOG,'cache':CACHE,'txlog':TXLOG,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+    rawSettings = {'log':LOG,'cache':CACHE,'txlog':TXLOG,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE, 'nft_name':NFT_NAME, 'nft_meta':NFT_META, 'nft_skey': NFT_SKEY}
 
     # Save/Update whitelist and profile.json files
-    settings_file = 'profile.json'
     reconfig_profile = json.load(open(settings_file, 'r'))
     reconfig_profile[profile_name] = rawSettings
     jsonSettings = json.dumps(reconfig_profile)
@@ -439,7 +518,7 @@ def create_smartcontract(profile_name, sc_path, src, pubkeyhash, price):
         s_file.write(jsonSettings)
         s_file.close()
 
-    print('\n================ Finished! ================\n > Your SmartContract Address For Your Records Is: ' + sc_addr + '\n\n')
+    print('\n================ Finished! ================\n > Your SmartContract Address For Your Records Is: ' + SC_ADDR + '\n\n')
     exit(0)
 
 def setup(logroot, profile_name='', reconfig=False, append=False):
@@ -470,6 +549,9 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     WT_ADA_AMNT_INPUT = ''
     AUTO_REFUND_INPUT = ''
     FEE_CHARGE_INPUT = ''
+    NFT_NAME_INPUT = ''
+    NFT_META_INPUT = ''
+    NFT_SKEY_INPUT = ''
     if reconfig:
         settings_file = 'profile.json'
         # Load settings
@@ -510,6 +592,9 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WT_ADA_AMNT_INPUT = PROFILE['wt_ada_amnt']
         AUTO_REFUND_INPUT = PROFILE['auto_refund']
         FEE_CHARGE_INPUT = PROFILE['fee_to_charge']
+        NFT_NAME_INPUT = PROFILE['nft_name']
+        NFT_META_INPUT = PROFILE['nft_meta']
+        NFT_SKEY_INPUT = PROFILE['nft_skey']
         
         UNIQUE_NAME = profile_name
         print('\n!!! WARNING !!!\nSettings for profile "' + profile_name + '" are about to be overwritten!\n\nExit now if you do not want to do that.\n\n')
@@ -540,6 +625,11 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     TOKEN_POLICY_ID = inputp('\nToken Policy ID Of Token To Be Deposited To Smart Contract\n(the long string before the dot)\n >Token Policy ID:', TOKEN_POLICY_ID_INPUT)
     TOKEN_NAME = inputp('\nToken Name Of Token To Be Deposited To Smart Contract\n(comes after the dot after the policy ID)\n >Token Name:', TOKEN_NAME_INPUT)
     print('\n\nNOTE: The following amount responses should all be\n      entered in Lovelace e.g. 1.5 ADA = 1500000\n\n')
+    if MINTING:
+        NFT_NAME = inputp('\nNFT Name (short name)\n >NFT Name:', NFT_NAME_INPUT)
+        NFT_META = inputp('\nNFT Meta (title:value,title:value)\n >NFT Meta:', NFT_META_INPUT)
+        NFT_SKEY = inputp('\nNFT Signing Key File Path\n(e.g. /home/user/node/wallets/policy.skey)\n >NFT Siging .skey File Path:', NFT_SKEY_INPUT)
+
     RETURN_ADA = inputp('\nAmount Of Lovelace To Include With Each Swap Transaction\n(cannot be below protocol limit)\n >Included ADA Amount in Lovelace:', RETURN_ADA_INPUT)
     EXPECT_ADA = inputp('\nAmount Of Lovelace To Watch For\n(this is the amount SeaMonk is watching the wallet for)\n >Watch-for Amount in Lovelace:', EXPECT_ADA_INPUT)
     MININPUT = '0'
@@ -611,7 +701,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         AUTO_REFUND = True
 
     # Save to dictionary
-    rawSettings = {'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+    rawSettings = {'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE, 'nft_name':NFT_NAME, 'nft_meta':NFT_META, 'nft_skey': NFT_SKEY}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -678,17 +768,76 @@ if __name__ == "__main__":
 
     # Setup Temp Directory (try to)
     scptroot = os.path.realpath(os.path.dirname(__file__))
+    APPROOT = os.path.join(scptroot, '')
     SRC = os.path.join(os.path.join(scptroot, 'smartcontract-src'), '')
+    MINTSRC = os.path.join(os.path.join(scptroot, 'minting-src'), '')
 
     logname = 'profiles'
     logpath = os.path.join(scptroot, logname)
     LOGROOT = os.path.join(logpath, '')
 
+    mintlogname = 'minted'
+    mintlogpath = os.path.join(scptroot, mintlogname)
+    MINTROOT = os.path.join(mintlogpath, '')
+
     try:
+        os.mkdir(mintlogname)
         os.mkdir(logname)
     except OSError:
         pass
-   
+
+    # Pre-Profile Functions (such as manual minting)
+    if len(OPTION_PASSED) > 0:
+        if OPTION_PASSED == 'mint_nft':
+            MINT_NETWORK = ['mainnet','']
+            MINT_ADDR = 'none'
+            print('\n=== Welcome to SeaMonk NFT Easy Mint (beta)! ===')
+            MINT_CLI = input('\nCardano CLI path (or leave blank if in system path):')
+            if len(MINT_CLI) == 0:
+                MINT_CLI = 'cardano-cli'
+            MINT_NETWORK = input('\nEnter the Network Type (mainnet or testnet):')
+            if MINT_NETWORK == 'testnet':
+                MINT_MAGIC = input('\nTestnet Magic Number:')
+                MINT_NETWORK = MINT_NETWORK + '-magic'
+            MINT_SKEY = input('\nEnter the Minting Wallet Signing Key (.skey) File Path:')
+            MINT_VKEY = input('\nEnter the Minting Wallet Verification Key (.vkey) File Path:')
+            MINT_POLICY_SKEY = input('\nEnter the Minting Policy Signing Key (.skey) File Path:')
+            MINT_POLICY_VKEY = input('\nEnter the Minting Policy Verification Key (.vkey) File Path:')
+            NFT_ADDR = input('\nNFT Recipient Address\n(or leave blank to mint at the same address as your minting wallet skey):')
+            MINT_NFT_NAME = input('\nNFT Name:')
+            MINT_NFT_META = input('\nNFT Meta\n(format as: "name":"value","image":"ipfs://hash", etc..):')
+            MINT_LAST_TIP = input('\nHow Many Slots To Add Until Locked?\n(1 slot ~ 1 second)\nSlots to Add to Current Block Height:')
+            print('\n...Building TX')
+
+            # Setup profile-specific cache and log folders
+            LOG = os.path.join(os.path.join(MINTROOT, MINT_NFT_NAME), '')
+            CACHE = os.path.join(os.path.join(LOG, 'cache'), '')
+            TXLOG = os.path.join(os.path.join(LOG, 'txs'), '')
+            try:
+                os.mkdir(LOG)
+                os.mkdir(CACHE)
+                os.mkdir(TXLOG)
+            except OSError:
+                pass
+            
+            # Instantiate log for profile
+            runlog_file = LOG + 'run.log'
+            is_runlog_file = os.path.isfile(runlog_file)
+            if not is_runlog_file:
+                try:
+                    open(runlog_file, 'x')
+                except OSError:
+                    pass
+            POLICY_HASH = tx.get_address_pubkeyhash(MINT_CLI, MINT_POLICY_VKEY)
+            NFT_DATA = [MINT_NFT_NAME, MINT_NFT_META, MINT_LAST_TIP, POLICY_HASH]
+            PROFILE = [MINT_CLI, MINT_NETWORK, MINT_MAGIC, LOG, TXLOG, CACHE]
+            MINT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
+            if len(NFT_ADDR) == 0:
+                NFT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
+            minted_hash = mint(PROFILE, MINTSRC, LOG, CACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, '2000000', NFT_DATA, '2000000', 'mint-' + MINT_NFT_NAME, True)
+            print('Completed! Minting TX Hash: ' + minted_hash)
+            exit(0)
+
     # Setup Settings Dictionary
     settings_file = 'profile.json'
     is_settings_file = os.path.isfile(settings_file)
@@ -759,7 +908,7 @@ if __name__ == "__main__":
     sc_file = SMARTCONTRACT_PATH
     is_sc_file = os.path.isfile(sc_file)
     if not is_sc_file:
-        create_smartcontract(PROFILE_NAME, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
+        create_smartcontract(PROFILE_NAME, APPROOT, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
 
     # Check for watched wallet signing key file
     if isfile(WATCH_SKEY_PATH) is False:
@@ -768,7 +917,7 @@ if __name__ == "__main__":
 
     if len(OPTION_PASSED) > 1 and len(API_ID) > 1 and len(WATCH_ADDR) > 1:
         if OPTION_PASSED == 'create_smartcontract':
-            create_smartcontract(PROFILE_NAME, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
+            create_smartcontract(PROFILE_NAME, APPROOT, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
 
         if OPTION_PASSED == 'get_transactions':
             running = False
