@@ -48,10 +48,8 @@ def inputp(prompt, text):
     return result
     
 def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, filePre, tokens_to_swap = 0, recipient_addr = '', replenish = False):
-    # Begin log file
+    # Begin log file and clear cache
     runlog_file = log + 'run.log'
-    
-    # Clear the cache
     tx.clean_folder(profile_name)
     tx.proto(profile_name)
     tx.get_utxo(profile_name, watch_addr, 'utxo.json')
