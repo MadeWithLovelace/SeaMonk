@@ -108,17 +108,16 @@ def get_address_pubkeyhash(cli_path, vkey_path):
     return p
 
 def get_smartcontract_addr(profile_name, smartcontract_path):
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     func = [
         s[profile_name]['cli_path'],
         'address',
         'build',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--payment-script-file',
         smartcontract_path
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(4, s[profile_name]['magic'])
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
@@ -178,17 +177,17 @@ def log_new_txs(profile_name, api_id, wallet_addr):
             pass
         
     # Get UTXO Info
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
-    rawUtxoTable = subprocess.check_output([
+    tx_list = [
         s[profile_name]['cli_path'],
         'query',
         'utxo',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--address',
         wallet_addr
-    ])
+    ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        tx_list.insert(4, s[profile_name]['magic'])
+    rawUtxoTable = subprocess.check_output(tx_list)
     # Output rows
     utxoTableRows = rawUtxoTable.strip().splitlines()
     # Foreach row compare against each line of tx file
@@ -350,34 +349,32 @@ def clean_folder(profile_name):
         remove(f)
 
 def proto(profile_name):
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     func = [
         s[profile_name]['cli_path'],
         'query',
         'protocol-parameters',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--out-file',
         s[profile_name]['cache'] + 'protocol.json'
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(4, s[profile_name]['magic'])
     p = subprocess.Popen(func)
     p.communicate()
 
 def get_utxo(profile_name, token_wallet, file_name):
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     func = [
         s[profile_name]['cli_path'],
         'query',
         'utxo',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--address',
         token_wallet,
         '--out-file',
         s[profile_name]['cache'] + file_name
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(4, s[profile_name]['magic'])
     p = subprocess.Popen(func)
     p.communicate()
 
@@ -452,19 +449,18 @@ def get_txin(profile_name, file_name, collateral, spendable=False, allowed_datum
     return txin_list, txincollat_list, amount, True, data_list
 
 def get_tip(profile_name):
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     cache = s[profile_name]['cache']
     add_slots = 1000
     func = [
         s[profile_name]['cli_path'],
         'query',
         'tip',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--out-file',
         cache + 'latest_tip.json'
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(4, s[profile_name]['magic'])
     p = subprocess.Popen(func)
     p.communicate()
     with open(cache+"latest_tip.json", "r") as tip_data:
@@ -475,16 +471,13 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
     # Begin log file
     cache = s[profile_name]['cache']
     runlog_file = s[profile_name]['log'] + 'run.log'
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'build',
         '--alonzo-era',
         '--cardano-mode',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--protocol-params-file',
         cache+'protocol.json',
         '--change-address',
@@ -494,6 +487,8 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
         '--out-file',
         cache+'tx.draft'
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(6, s[profile_name]['magic'])
     func += utxo_in
     func += utxo_col
     func += utxo_out
@@ -512,19 +507,18 @@ def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, 
 def sign_tx(profile_name, witnesses, filePre):
     # Begin log file
     runlog_file = s[profile_name]['log'] + 'run.log'
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'sign',
         '--tx-body-file',
         s[profile_name]['cache'] + 'tx.draft',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--tx-file',
         s[profile_name]['txlog'] + filePre + 'tx.signed'
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(6, s[profile_name]['magic'])
     func += witnesses
     p = subprocess.Popen(func)
     p.communicate()
@@ -532,17 +526,16 @@ def sign_tx(profile_name, witnesses, filePre):
 def submit_tx(profile_name, filePre):
     # Begin log file
     runlog_file = s[profile_name]['log'] + 'run.log'
-    network = 'mainnet'
-    if s[profile_name]['network'] == 'testnet-magic':
-        network = s[profile_name]['network'] + ' "' + s[profile_name]['magic'] + '"'
     func = [
         s[profile_name]['cli_path'],
         'transaction',
         'submit',
         '--cardano-mode',
-        '--' + network,
+        '--' + s[profile_name]['network'],
         '--tx-file',
         s[profile_name]['txlog'] + filePre + 'tx.signed',
     ]
+    if s[profile_name]['network'] == 'testnet-magic':
+        func.insert(5, s[profile_name]['magic'])
     p = subprocess.Popen(func)
     p.communicate()
