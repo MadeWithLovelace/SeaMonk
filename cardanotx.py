@@ -851,7 +851,7 @@ def sign_tx(profile_name, witnesses, filePre):
     p = subprocess.Popen(func)
     p.communicate()
 
-def submit_tx(profile_name, filePre):
+def submit_tx(profile_name, filePre, tx_hash_in, tx_amnt_in, tx_time):
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     api_id = s[profile_name]['api']
@@ -859,7 +859,6 @@ def submit_tx(profile_name, filePre):
 
     # Get latest transactions first
     log_new_txs(profile_name, api_id, watch_addr)
-    sleep(2)
 
     # Begin log file
     runlog_file = log + 'run.log'
@@ -876,6 +875,10 @@ def submit_tx(profile_name, filePre):
         func.insert(5, magic)
     p = subprocess.Popen(func)
     p.communicate()
+
+    # Archive TX
+    if tx_hash_in != 'none':
+        archive_tx(profile_name, tx_hash_in, tx_amnt_in, tx_time)
 
     # Get latest transactions after, loop check TX hash and log new txs
     log_new_txs(profile_name, api_id, watch_addr)
