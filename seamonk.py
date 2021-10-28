@@ -174,12 +174,9 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                     ct = 41
                 else:
                     clue_diff = int(refund_amnt) / int(magic_price)
-                    print('\nclue diff:', clue_diff)
                     if clue_diff >= 0.8:
-                        print('\ndiff is less/equal to 20%')
                         ct = 130
                     if clue_diff <= 0.2:
-                        print('\ndiff is greater/equal to 80%')
                         ct = 50
                 clue_token = str(ct)
                 refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
@@ -190,10 +187,8 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                 else:
                     clue_diff = int(refund_amnt) / int(magic_price)
                     if clue_diff >= 0.8:
-                        print('\ndiff is less/equal to 20%')
                         ct = 90
                     if clue_diff <= 0.2:
-                        print('\ndiff is less/equal to 80%')
                         ct = 10
                 clue_token = str(ct)
                 refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
@@ -1016,10 +1011,14 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
             STAT = int(RESLIST[5])
             TX_TIME = RESLIST[6]
 
+            # Archive internal TXs and continue
+            if STAT == 2:
+                continue
+
             # If a SC Swap
             if PROFILE_TYPE == 0:
                 if STAT == 0:
-                    # Archive TX and continue
+                    # Archive TX and continue for now, may need to refund in future for catching small/under limit tx and auto refunding
                     tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                     continue
                 with open(runlog_file, 'a') as runlog:
@@ -1082,7 +1081,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                                 runlog.close()
                             payments_file = PROFILELOG + 'payments.log'
                             with open(payments_file, 'a') as payments_a:
-                                payments_a.write(result + ',' + TX_TIME + '\n')
+                                payments_a.write(result + '\n')
                                 payments_a.close()
 
                             # Archive completed TX
@@ -1119,7 +1118,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                         # Record the payment as completed and remove from whitelist if set to true
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + ',' + TX_TIME + '\n')
+                            payments_a.write(result + '\n')
                             payments_a.close()
 
                         # Archive completed TX
@@ -1165,7 +1164,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                         # Record the payment as completed
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + ',' + TX_TIME + '\n')
+                            payments_a.write(result + '\n')
                             payments_a.close()
                             
                         # Archive completed TX
@@ -1183,10 +1182,6 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
 
             if PROFILE_TYPE == 1:
                 if STAT == 0 or NFT_MINTED == True:
-                    if RECIPIENT_ADDR == MINT_ADDR or RECIPIENT_ADDR == WATCH_ADDR:
-                        # Archive internal TX
-                        tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
-                        continue
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\n--- Check For Payments Found Refundable NFT TX ---\n')
                         runlog.close()
@@ -1222,7 +1217,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                             runlog.close()
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + ',' + TX_TIME + '\n')
+                            payments_a.write(result + '\n')
                             payments_a.close()
 
                         # Archive completed TX
@@ -1260,7 +1255,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                 # Record the payment as completed
                 payments_file = PROFILELOG + 'payments.log'
                 with open(payments_file, 'a') as payments_a:
-                    payments_a.write(result + ',' + TX_TIME + '\n')
+                    payments_a.write(result + '\n')
                     payments_a.close()
 
                 # Archive completed TX

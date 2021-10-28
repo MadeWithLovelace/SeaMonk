@@ -257,9 +257,8 @@ def archive_tx(profile_name, tx_hash, tx_amnt, tx_time):
                 amntP = int(tx_amnt)
                 timeP = tx_time.strip()
                 if hashL == hashP and amntL == amntP and timeL == timeP:
-                    print('\nmatch!')
                     with open(tx_archive_file, 'a') as archive_file:
-                        archive_file.write(line + '\n')
+                        archive_file.write(line)
                         archive_file.close()
                 else:
                     write_file.write(line)
@@ -393,7 +392,7 @@ def log_new_txs(profile_name, api_id, wallet_addr):
             for tx_data in tx_result.json()['inputs']:
                 from_addr = tx_data['address']
             for output in tx_result.json()['outputs']:
-                txwrite = [tx_hash, from_addr, '0', '0', 'none']
+                txwrite = [tx_hash, from_addr, '0', '0', 'none', 'time']
                 if output['address'] == wallet_addr:
                     for amounts in output['amount']:
                         if amounts['unit'] == 'lovelace':
@@ -406,8 +405,10 @@ def log_new_txs(profile_name, api_id, wallet_addr):
                                     txwrite[3] = str(amounts['quantity'])
                                     txwrite[4] = amounts['unit']
                     txlog_a = open(txlog_file, 'a')
-                    log_time = strftime("%Y-%m-%d_%H-%M-%S", gmtime())
-                    txlog_a.write(','.join(txwrite) + ',' + log_time.strip() + '\n')
+                    # Delay to keep timestamps unique
+                    sleep(2)
+                    txwrite[5] = strftime("%Y-%m-%d_%H-%M-%S", gmtime())
+                    txlog_a.write(','.join(txwrite) + '\n')
                     txlog_a.close()
             txlog_r.close()
     return txcount
@@ -430,7 +431,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
     compare_addr = True
     compare_amnt = True
     record_as_payment = False
-    stat = '0'
+    stat = ''
     if sender_addr == 'none':
         compare_addr = False
     if amount == 0 and min_watch == 0:
@@ -475,16 +476,20 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
             flag = 0
             readpay_index = 0
             payments_r = open(payments_file, 'r')
+
             # Foreach line of the file
             for line in payments_r:
                 if readpay_index == 0:
                     readpay_index += 1
                     continue
                 readpay_index += 1
-                if tx_hash in line and tx_time in line:
+                if tx_hash in line and str(tx_amnt) in line and tx_time in line:
                     flag = 1
                     break
             if tx_addr == watch_addr or tx_addr == sc_addr:
+                # Archive internal TX
+                archive_tx(profile_name, tx_hash, tx_amnt, tx_time)
+                stat = '2'
                 flag = 1
             if flag == 1:
                 continue
@@ -523,7 +528,10 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                     stat = '0'
             record_as_payment = False
             payments_r.close()
-    return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',' + stat + ',' + tx_time
+    if stat == '2' or stat == '':
+        return_data = ',,0,0,,2,'
+    else:
+        return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',' + stat + ',' + tx_time
     txlog_r.close()
     return return_data
 
