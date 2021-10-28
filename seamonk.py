@@ -521,7 +521,6 @@ def create_smartcontract(profile_name, approot, sc_path, src, pubkeyhash, price)
     API_ID = PROFILE['api']
     WATCH_ADDR = PROFILE['watchaddr']
     COLLATERAL = PROFILE['collateral']
-    CHECK = PROFILE['check']
     WLENABLED = PROFILE['wlenabled']
     WHITELIST_ONCE = PROFILE['wlone']
     WATCH_SKEY_PATH = PROFILE['watchskey']
@@ -570,7 +569,7 @@ def create_smartcontract(profile_name, approot, sc_path, src, pubkeyhash, price)
     SC_ADDR = tx.get_smartcontract_addr(profile_name, sc_path)
 
     # Save to dictionary
-    rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+    rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
 
     # Save/Update whitelist and profile.json files
     reconfig_profile = json.load(open(settings_file, 'r'))
@@ -591,7 +590,6 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     API_ID_INPUT = ''
     WATCH_ADDR_INPUT = ''
     COLLATERAL_INPUT = ''
-    CHECK_INPUT = ''
     WLENABLED_INPUT = ''
     WHITELIST_ONCE_INPUT = ''
     WATCH_SKEY_PATH_INPUT = ''
@@ -637,7 +635,6 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         API_ID_INPUT = PROFILE['api']
         WATCH_ADDR_INPUT = PROFILE['watchaddr']
         COLLATERAL_INPUT = PROFILE['collateral']
-        CHECK_INPUT = PROFILE['check']
         WLENABLED_INPUT = PROFILE['wlenabled']
         WHITELIST_ONCE_INPUT = PROFILE['wlone']
         WATCH_SKEY_PATH_INPUT = PROFILE['watchskey']
@@ -700,7 +697,6 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         MAGICINPUT = inputp(' >Testnet Magic:', MAGIC_INPUT)
     CLI_PATH = inputp('\nExplicit Path To "cardano-cli"\n(leave empty if cardano-cli is in your system path and\nit is the version you want to use with this profile)\n >Cardano-CLI Path:', CLI_PATH_INPUT)
     API_ID = inputp('\nYour Blockfrost API ID\n(should match the network-specific ID i.e. mainnet vs testnet)\n >Blockfrost API ID:', API_ID_INPUT)
-    CHECKSTRING = inputp('\nCheck for Transactions Simultaneously?\n(Recommended: True - if set to false you will need to run a seperate instance of seamonk.py with the option "get_transactions" for getting transactions)\n >Enter True or False:', str(CHECK_INPUT))
     WLENABLEDSTRING = inputp('\nUse a whitelist?\n(if false, any payment received to the watched address will be checked for matching amount params)\n >Enter True or False:', str(WLENABLED_INPUT))
     WLONESTRING = 'False'
     if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
@@ -715,11 +711,8 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         NETWORK = 'testnet-magic'
         MAGIC = MAGICINPUT
     API_URI = 'https://cardano-' + NETWORKINPUT + '.blockfrost.io/api/v0/'
-    CHECK = False
     WLENABLED = False
     WHITELIST_ONCE = False
-    if CHECKSTRING == 'True' or CHECKSTRING == 'true':
-        CHECK = True
     if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
         WLENABLED = True
     if WLONESTRING == 'True' or WLONESTRING == 'true':
@@ -769,7 +762,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
             AUTO_REFUND = True
         
         # Save to dictionary
-        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
 
     if PROFILE_TYPE == 1:
         NFT_ADDR = ''
@@ -861,7 +854,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         NFT_DATA = [MINT_NFT_NAME, MINT_NFT_QTY, MINT_NFT_JSON, MINT_TARGET_TIP, MINT_LAST_TIP, POLICY_HASH]
 
         # Save to dictionary
-        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'check':CHECK,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME}
+        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -918,7 +911,6 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
     PROFILE_TYPE = PROFILE['type']
     API_ID = PROFILE['api']
     WATCH_ADDR = PROFILE['watchaddr']
-    CHECK = PROFILE['check']
     WLENABLED = PROFILE['wlenabled']
     WHITELIST_ONCE = PROFILE['wlone']
     EXPECT_ADA = PROFILE['expectada']
@@ -1313,7 +1305,6 @@ if __name__ == "__main__":
     PROFILE = load_profile[PROFILE_NAME]
     API_ID = PROFILE['api']
     WATCH_ADDR = PROFILE['watchaddr']
-    CHECK = PROFILE['check']
     PROFILELOG = PROFILE['log']
     PROFILECACHE = PROFILE['cache']
     PROFILE_TYPE = PROFILE['type']
