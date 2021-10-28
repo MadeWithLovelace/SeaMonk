@@ -263,12 +263,18 @@ def check_for_tx(profile_name, tx_hash_match):
 def log_new_txs(profile_name, api_id, wallet_addr):
     """
     Checks for new transactions and maintains a log of tx_hashes at seamonk-data/transactions.log, returns new tx count integer
-    """
+    """    
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
 
     # Begin log file
     runlog_file = log + 'run.log'
+    time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+    # Debug
+    #print('\nLogger Running at ' + time_now)
+    with open(runlog_file, 'a') as runlog:
+        runlog.write('\nTX Logger Running at ' + time_now)
+        runlog.close()
 
     # Setup file
     txcount = 0
@@ -780,6 +786,12 @@ def sign_tx(profile_name, witnesses, filePre):
 def submit_tx(profile_name, filePre):
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+    api_id = s[profile_name]['api']
+    watch_addr = s[profile_name]['watchaddr']
+
+    # Get latest transactions first
+    log_new_txs(profile_name, api_id, watch_addr)
+    sleep(2)
 
     # Begin log file
     runlog_file = log + 'run.log'
@@ -796,3 +808,17 @@ def submit_tx(profile_name, filePre):
         func.insert(5, magic)
     p = subprocess.Popen(func)
     p.communicate()
+
+    # Get latest transactions after, loop check TX hash and log new txs
+    log_new_txs(profile_name, api_id, watch_addr)
+    tx_hash = get_tx_hash(profile_name, filePre)
+    tx_hash = tx_hash.strip()
+    with open(runlog_file, 'a') as runlog:
+        runlog.write('\nWaiting for ' + filePre + 'tx to clear, with hash: ' + tx_hash)
+        runlog.close()
+    tx_hash_flag = False
+    while not tx_hash_flag:
+        sleep(2)
+        log_new_txs(profile_name, api_id, watch_addr)
+        tx_hash_flag = check_for_tx(profile_name, tx_hash)
+    return tx_hash

@@ -2,7 +2,6 @@ import os
 import readline
 import subprocess
 import json
-import cbor_json
 import cardanotx as tx
 import getopt
 import shutil
@@ -10,7 +9,7 @@ import time
 from sys import exit, argv
 from os.path import isdir, isfile
 from time import sleep, strftime, gmtime
-from threading import Thread
+#from threading import Thread
 
 def inputp(prompt, text):
     def hook():
@@ -65,17 +64,11 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
             watch_skey_path
         ]
         tx.sign_tx(profile_name, witnesses, filePreCollat)
-        tx.submit_tx(profile_name, filePreCollat)
-        tx_hash_collat = tx.get_tx_hash(profile_name, filePreCollat)
         if not replenish:
-            print('\nWaiting for new UTxO to appear on blockchain...')
-        
-        # Wait for tx to appear
-        tx_hash_collat = tx_hash_collat.strip()
-        tx_collat_flag = False
-        while not tx_collat_flag:
-            sleep(5)
-            tx_collat_flag = tx.check_for_tx(profile_name, tx_hash_collat)
+            print('\nSubmitting and waiting for new UTxO to appear on blockchain...')
+        tx_hash_collat = tx.submit_tx(profile_name, filePreCollat)
+        if not replenish:
+            print('\nTX Hash returned: ' + tx_hash_collat)
     
     # Build, sign, and send transaction
     if flag is True:
@@ -145,14 +138,13 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
             watch_skey_path
         ]
         tx.sign_tx(profile_name, witnesses, filePre)
-        tx.submit_tx(profile_name, filePre)
-        tx_hash = tx.get_tx_hash(profile_name, filePre)
-        return tx_hash
+        tx_hash = tx.submit_tx(profile_name, filePre)
     else:
         if not replenish:
             print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
             exit(0)
-        return 'Error: Collateral UTxO Missing or could not be created.'
+        tx_hash = 'error'
+    return tx_hash
 
 def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, return_ada, price, collateral, filePre, refund_amnt = 0, refund_type = 0, magic_price = 0):
     # Begin log file
@@ -243,8 +235,7 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
             watch_skey_path
         ]
         tx.sign_tx(profile_name, witnesses, filePre)
-        tx.submit_tx(profile_name, filePre)
-        tx_hash = tx.get_tx_hash(profile_name, filePre)
+        tx_hash = tx.submit_tx(profile_name, filePre)
     else:
         with open(runlog_file, 'a') as runlog:
             runlog.write('\nNo collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.\n')
@@ -311,8 +302,7 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
             watch_skey_path
         ]
         tx.sign_tx(profile_name, witnesses, filePre)
-        tx.submit_tx(profile_name, filePre)
-        tx_hash = tx.get_tx_hash(profile_name, filePre)
+        tx_hash = tx.submit_tx(profile_name, filePre)
     else:
         with open(runlog_file, 'a') as runlog:
             runlog.write('\nNo collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.\n')
@@ -459,8 +449,7 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
     
     # Sign and send
     tx.sign_tx(profile_name, witnesses, filePre)
-    tx.submit_tx(profile_name, filePre)
-    tx_hash = tx.get_tx_hash(profile_name, filePre)
+    tx_hash = tx.submit_tx(profile_name, filePre)
     if manual:
         return tx_hash, nft_id, str(until_tip)
     return tx_hash
@@ -503,12 +492,16 @@ def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path,
     print('\nDeposit is processing . . . ')
     tx.log_new_txs(profile_name, api_id, watch_addr)
     sleep(2)
-    tx_hash = tx_hash.strip()
-    tx_flag = False
-    while not tx_flag:
-        sleep(5)
-        tx_flag = tx.check_for_tx(profile_name, tx_hash)
-    print('\nDeposit Completed!')
+    if tx_hash != 'error':
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\nDeposit hash found, TX completed.')
+            runlog.close()
+        print('\nDeposit Completed!')
+    else:
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\nTX attempted, error returned by deposit attempt')
+            runlog.close()
+        print('\nDeposit Failed!')
 
 def create_smartcontract(profile_name, approot, sc_path, src, pubkeyhash, price):
     # Load settings to modify
@@ -917,7 +910,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
 def tx_logger(profile_name, api_id, watch_addr):
     while True:
         # Begin checking for txs
-        result = tx.log_new_txs(profile_name, api_id, watch_addr)
+        logging_result = tx.log_new_txs(profile_name, api_id, watch_addr)
         sleep(2)
 
 def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
@@ -1007,6 +1000,8 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
             if not EXPECT_ADA:
                 EXPECT_ADA = 0
             RECIPIENT_ADDR = waddr.strip()
+            tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
+            sleep(5)
             result = tx.check_for_payment(PROFILE_NAME, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR)
             RESLIST = result.split(',')
             TX_HASH = RESLIST[0].strip()
@@ -1061,19 +1056,19 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                             filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                             tx_refund_a_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
-                            # Check for tx to complete
-                            with open(runlog_file, 'a') as runlog:
-                                runlog.write('\nWaiting for tx to clear, with hash: '+tx_refund_a_hash.strip())
-                                runlog.close()
-                            tx_refund_a_hash = tx_refund_a_hash.strip()
-                            tx_refund_a_flag = False
-                            while not tx_refund_a_flag:
-                                sleep(5)
-                                tx_refund_a_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_a_hash)
+                            if tx_refund_a_hash != 'error':
+                                with open(runlog_file, 'a') as runlog:
+                                    runlog.write('\nRefund hash found, TX completed. Writing to payments.log.')
+                                    runlog.close()
+                            else:
+                                with open(runlog_file, 'a') as runlog:
+                                    runlog.write('\nTX attempted, error returned by withdraw')
+                                    runlog.close()
+                                continue
 
                             # Record the payment as completed, leave whitelist untouched since not a valid swap tx
                             with open(runlog_file, 'a') as runlog:
-                                runlog.write('\nHash found, TX completed. Writing to payments.log...')
+                                runlog.write('\nRefund hash found, TX completed. Writing to payments.log.')
                                 runlog.close()
                             payments_file = PROFILELOG + 'payments.log'
                             with open(payments_file, 'a') as payments_a:
@@ -1096,19 +1091,15 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                         filePre = 'replenishSC_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                         tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, TOKENS_TOSWAP, RECIPIENT_ADDR, True)
 
-                        with open(runlog_file, 'a') as runlog:
-                            runlog.write('\nTX Result: '+tx_rsc_hash+' - Waiting for confirmation...')
-                            runlog.close()
-
-                        # Wait for transaction to clear...
-                        tx_rsc_hash = tx_rsc_hash.strip()
-                        tx_rsc_flag = False
-                        while not tx_rsc_flag:
-                            sleep(5)
-                            tx_rsc_flag = tx.check_for_tx(PROFILE_NAME, tx_rsc_hash)
-                        with open(runlog_file, 'a') as runlog:
-                            runlog.write('\nReplenish-SC TX Hash Found: '+tx_rsc_hash)
-                            runlog.close()
+                        if tx_rsc_hash != 'error':
+                            with open(runlog_file, 'a') as runlog:
+                                runlog.write('\nRefund hash found, TX completed. Writing to payments.log.')
+                                runlog.close()
+                        else:
+                            with open(runlog_file, 'a') as runlog:
+                                runlog.write('\nTX attempted, error returned by withdraw')
+                                runlog.close()
+                            continue
 
                         # Record the payment as completed and remove from whitelist if set to true
                         payments_file = PROFILELOG + 'payments.log'
@@ -1142,15 +1133,15 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                             filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                             tx_refund_b_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, REFUND_AMNT)
 
-                            # Wait for transaction to clear...
-                            tx_refund_b_hash = tx_refund_b_hash.strip()
-                            tx_refund_b_flag = False
-                            while not tx_refund_b_flag:
-                                sleep(5)
-                                tx_refund_b_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_b_hash)
-                            with open(runlog_file, 'a') as runlog:
-                                runlog.write('\nRefund TX Hash Found: '+tx_refund_b_hash)
-                                runlog.close()
+                            if tx_refund_b_hash != 'error':
+                                with open(runlog_file, 'a') as runlog:
+                                    runlog.write('\nRefund hash found, TX completed. Writing to payments.log.')
+                                    runlog.close()
+                            else:
+                                with open(runlog_file, 'a') as runlog:
+                                    runlog.write('\nTX attempted, error returned by withdraw')
+                                    runlog.close()
+                                continue
                         
                         # Record the payment as completed
                         payments_file = PROFILELOG + 'payments.log'
@@ -1198,27 +1189,21 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                         runlog.write('\nRefunding Bid: '+str(REFUND_AMNT))
                         runlog.close()
                     filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-                    tx_refund_a_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, MINT_ADDR, MINT_SKEY, '', '', TOKEN_POLICY_ID, TOKEN_NAME, '', RECIPIENT_ADDR, RETURN_ADA, '', COLLATERAL, filePre, REFUND_AMNT, REFUND_TYPE, MAGIC_PRICE)
-
-                    # Check for tx to complete
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\nWaiting for tx to clear, with hash: '+tx_refund_a_hash.strip())
-                        runlog.close()
-                    tx_refund_a_hash = tx_refund_a_hash.strip()
-                    tx_refund_a_flag = False
-                    while not tx_refund_a_flag:
-                        sleep(5)
-                        tx_refund_a_flag = tx.check_for_tx(PROFILE_NAME, tx_refund_a_hash)
+                    tx_refund_c_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, MINT_ADDR, MINT_SKEY, '', '', TOKEN_POLICY_ID, TOKEN_NAME, '', RECIPIENT_ADDR, RETURN_ADA, '', COLLATERAL, filePre, REFUND_AMNT, REFUND_TYPE, MAGIC_PRICE)
 
                     # Record the payment as completed, leave whitelist untouched since not a valid swap tx
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\nHash found, TX completed. Writing to payments.log...')
-                        runlog.close()
-                    payments_file = PROFILELOG + 'payments.log'
-                    with open(payments_file, 'a') as payments_a:
-                        payments_a.write(result + '\n')
-                        payments_a.close()
-
+                    if tx_refund_c_hash != 'error':
+                        with open(runlog_file, 'a') as runlog:
+                            runlog.write('\nHash found, TX completed. Writing to payments.log...')
+                            runlog.close()
+                        payments_file = PROFILELOG + 'payments.log'
+                        with open(payments_file, 'a') as payments_a:
+                            payments_a.write(result + '\n')
+                            payments_a.close()
+                    else:
+                        with open(runlog_file, 'a') as runlog:
+                            runlog.write('\nTX attempted, error returned by withdraw')
+                            runlog.close()
                     continue
 
                 with open(runlog_file, 'a') as runlog:
@@ -1240,12 +1225,6 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nSet minted flag to True')
                         runlog.close()
-                # Wait for swap to clear...
-                tx_final_hash = tx_final_hash.strip()
-                tx_sc_flag = False
-                while not tx_sc_flag:
-                    sleep(5)
-                    tx_sc_flag = tx.check_for_tx(PROFILE_NAME, tx_final_hash)
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n' + type_title + ' TX Hash Found: '+tx_final_hash)
                     runlog.close()
@@ -1269,9 +1248,13 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                 sleep(5)
             else:
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nSC Swap Failed: '+RECIPIENT_ADDR+' | '+str(TOKENS_TOSWAP)+' | '+str(ADA_RECVD))
+                    runlog.write('\n' + type_title + ' Failed: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD))
                     runlog.close()
         whitelist_r.close()
+
+        # Check again and sleep program for NN seconds
+        tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
+        sleep(60)
 
 if __name__ == "__main__":
     # Set default program mode
@@ -1347,7 +1330,7 @@ if __name__ == "__main__":
             setup(LOGROOT, PROFILE_NAME, False, True)
 
         if OPTION_PASSED == 'get_transactions':
-                running = False
+            running = False
 
         if OPTION_PASSED == 'mint':
             MINT_NETWORK = 'mainnet'
@@ -1476,7 +1459,7 @@ if __name__ == "__main__":
             if len(NFT_ADDR) == 0:
                 NFT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
             minted_hash, policyID, policy_tip = mint(PROFILE, MINTSRC, LOG, CACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, '2000000', NFT_DATA, 'mint-' + MINT_NFT_NAME, True)
-            print('\nCompleted! (TX Hash is ' + minted_hash + ')')
+            print('\nCompleted - (TX Hash return is ' + minted_hash + ')')
             print('\nIMPORTANT: Take note of the following Policy ID and Policy Locking Slot Number. If you will be minting more NFTs to this same Policy ID, you will need to enter the following Policy Locking Slot Number when minting another NFT into this policy.')
             print('\n    > Asset Name: ', policyID + '.' + MINT_NFT_NAME)
             print('\n    > Minted Qty: ', MINT_NFT_QTY)
@@ -1516,7 +1499,7 @@ if __name__ == "__main__":
                 exit(0)
     
     # Start get_transactions thread
-    if CHECK or running == False:
+    if running == False:
         # Instantiate log for profile
         runlog_file = PROFILELOG + 'run.log'
         is_runlog_file = os.path.isfile(runlog_file)
@@ -1529,8 +1512,9 @@ if __name__ == "__main__":
             time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
             runlog.write('\n===============================\n          Begin logging transactions at: ' + time_now + '\n===============================\n')
             runlog.close()
-        Thread(target=lambda: tx_logger(PROFILE_NAME, API_ID, WATCH_ADDR)).start()
+        #Thread(target=lambda: tx_logger(PROFILE_NAME, API_ID, WATCH_ADDR)).start()
+        tx_logger(PROFILE_NAME, API_ID, WATCH_ADDR)
 
     # Start main thread
     if running == True:
-        Thread(target=lambda: tx_processor(MINTSRC, PROFILE_NAME, PROFILE)).start()
+        tx_processor(MINTSRC, PROFILE_NAME, PROFILE)
