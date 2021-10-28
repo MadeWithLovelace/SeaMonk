@@ -157,7 +157,7 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
 
     # Run get_txin
     utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(profile_name, 'utxo.json', collateral)
-    
+    flag = True
     # Build, Sign, and Send TX
     if flag is True:
         _, until_tip, block = tx.get_tip(profile_name)
@@ -611,6 +611,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     WT_ADA_AMNT_INPUT = ''
     AUTO_REFUND_INPUT = ''
     FEE_CHARGE_INPUT = ''
+    NFT_MINTED = False
 
     # For minting only
     MINT_TARGET_TIP = '0'
@@ -656,6 +657,9 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WT_ADA_AMNT_INPUT = PROFILE['wt_ada_amnt']
         AUTO_REFUND_INPUT = PROFILE['auto_refund']
         FEE_CHARGE_INPUT = PROFILE['fee_to_charge']
+
+        if PROFILE_TYPE == 1:
+            NFT_MINTED = PROFILE['nft_minted']
         
         UNIQUE_NAME = profile_name
         print('\n!!! WARNING !!!\nSettings for profile "' + profile_name + '" are about to be overwritten!\n\nExit now if you do not want to do that.\n\n')
@@ -861,7 +865,7 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         NFT_DATA = [MINT_NFT_NAME, MINT_NFT_QTY, MINT_NFT_JSON, MINT_TARGET_TIP, MINT_LAST_TIP, POLICY_HASH]
 
         # Save to dictionary
-        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME}
+        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'nft_minted':NFT_MINTED}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -917,6 +921,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
     # Vars shared
     PROFILE_TYPE = PROFILE['type']
     API_ID = PROFILE['api']
+    API_URI = PROFILE['api_uri']
     WATCH_ADDR = PROFILE['watchaddr']
     WLENABLED = PROFILE['wlenabled']
     WHITELIST_ONCE = PROFILE['wlone']
@@ -926,6 +931,10 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
     TOKEN_POLICY_ID = PROFILE['tokenid']
     TOKEN_NAME = PROFILE['tokenname']
     COLLATERAL = PROFILE['collateral']
+
+    NETWORK = PROFILE['network']
+    MAGIC = PROFILE['magic']
+    CLI_PATH = PROFILE['cli_path']
 
     # Vars profile 0 - SmartContract Swap
     if PROFILE_TYPE == 0:
@@ -949,7 +958,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
     
     # Vars profile 1 - NFT AutoMinting
     if PROFILE_TYPE == 1:
-        NFT_MINTED = False
+        NFT_MINTED = PROFILE['nft_minted']
         MINT_ADDR = PROFILE['mint_addr']
         NFT_ADDR = PROFILE['nft_addr']
         MINT_SKEY = PROFILE['wallet_skey'] # Similar to WATCH_SKEY_PATH
@@ -1227,15 +1236,28 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nMinting to address: '+NFT_ADDR+' | json_file:'+NFT_DATA[2]+' | policy_file:'+NFT_DATA[5] + ' | name:' + NFT_DATA[0] + ' | lock:' + NFT_DATA[3])
                     runlog.close()
+                NFT_MINTED = True
+                PROFILE['nft_minted'] = NFT_MINTED
+
+                # Update
+                updateMinting = {'type':PROFILE_TYPE,'log':PROFILELOG,'cache':PROFILECACHE,'txlog':PROFILETXS,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'nft_minted':NFT_MINTED}
+
+                # Save/Update whitelist and profile.json files
+                UpdateSetFile = 'profile.json'
+                update_minting = json.load(open(UpdateSetFile, 'r'))
+                update_minting[PROFILE_NAME] = updateMinting
+                jsonOUTSettings = json.dumps(update_minting)
+                with open(UpdateSetFile, 'w') as update_s:
+                    update_s.write(jsonOUTSettings)
+                    update_s.close()
+
+                with open(runlog_file, 'a') as runlog:
+                    runlog.write('\nSet minted flag to True')
+                    runlog.close()
                 tx_final_hash = mint(PROFILE_NAME, MINTSRC, PROFILELOG, PROFILECACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, RETURN_ADA, NFT_DATA, filePre, TX_IN_DATA)
 
             # With either type watch for TX and record payment
             if tx_final_hash != 'error':
-                if PROFILE_TYPE == 1:
-                    NFT_MINTED = True
-                    with open(runlog_file, 'a') as runlog:
-                        runlog.write('\nSet minted flag to True')
-                        runlog.close()
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n' + type_title + ' TX Hash Found: '+tx_final_hash)
                     runlog.close()

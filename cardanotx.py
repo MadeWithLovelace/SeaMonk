@@ -256,7 +256,11 @@ def archive_tx(profile_name, tx_hash, tx_amnt, tx_time):
                 hashP = tx_hash.strip()
                 amntP = int(tx_amnt)
                 timeP = tx_time.strip()
-                if hashL == hashP and amntL == amntP and timeL == timeP:
+                if hashL == hashP and amntP == 0 and timeP == 'none':
+                    with open(tx_archive_file, 'a') as archive_file:
+                        archive_file.write(line)
+                        archive_file.close()
+                elif hashL == hashP and amntL == amntP and timeL == timeP:
                     with open(tx_archive_file, 'a') as archive_file:
                         archive_file.write(line)
                         archive_file.close()
@@ -860,6 +864,10 @@ def submit_tx(profile_name, filePre, tx_hash_in, tx_amnt_in, tx_time):
     # Get latest transactions first
     log_new_txs(profile_name, api_id, watch_addr)
 
+    # Archive TX
+    if tx_hash_in != 'none':
+        archive_tx(profile_name, tx_hash_in, tx_amnt_in, tx_time)
+        
     # Begin log file
     runlog_file = log + 'run.log'
     func = [
@@ -876,10 +884,6 @@ def submit_tx(profile_name, filePre, tx_hash_in, tx_amnt_in, tx_time):
     p = subprocess.Popen(func)
     p.communicate()
 
-    # Archive TX
-    if tx_hash_in != 'none':
-        archive_tx(profile_name, tx_hash_in, tx_amnt_in, tx_time)
-
     # Get latest transactions after, loop check TX hash and log new txs
     log_new_txs(profile_name, api_id, watch_addr)
     tx_hash = get_tx_hash(profile_name, filePre)
@@ -892,5 +896,6 @@ def submit_tx(profile_name, filePre, tx_hash_in, tx_amnt_in, tx_time):
         sleep(2)
         log_new_txs(profile_name, api_id, watch_addr)
         tx_hash_flag = check_for_tx(profile_name, tx_hash)
-    #TODO: Archive the returned TX
+    # Archive self tx (speeds up processing)
+    archive_tx(profile_name, tx_hash, 0, 'none')
     return tx_hash

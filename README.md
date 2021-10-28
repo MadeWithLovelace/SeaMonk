@@ -85,5 +85,13 @@ TODO: This is an incomplete list, will update soon
 ## A few dev notes
 SeaMonk is meant to work with a SmartContract but can be slightly altered to work with just wallets. It's a matter of minor edits to the lines of code where the tx-outs are being formatted and ordered. The order of those lines matters when dealing with SmartContracts. The transaction going out to the SmartContract must always be the final tx-out right before the Datum is called, otherwise it will not get the Datum and the transaction will be locked in the SmartContract forever.
 
+For NFT Minting do these steps in this order:
+1. prepare the minting wallet, fund it, then fund self so latest txs are from self
+2. setup seamonk in its own folder. have all wallet skey and vkey file paths ready, blockfrost ID, and know how locking height will work.
+3. setup images and locate file paths for each, any alterations to the html template if changing the format etc.
+4. run seamonk first time setup, notate the block height resultant (make sure it will work) and the json file to customize
+5. customize json file and save
+6. run seamonk and go live
+
 ## Mentions
 I stumbled upon a really fantastic repository from [logicalmechanism](https://github.com/logicalmechanism/Token-Sale-Plutus-Contract) recently, which inspired me to develop SeaMonk, drawing on some of the functionality laid out within their Python scripts, and we adapted the version of our plutus smart contract we used from one of the smart contracts we found in that same repository. So a huge shout out to them!
