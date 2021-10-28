@@ -687,10 +687,16 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     txlog = os.path.join(os.path.join(log, 'txs'), '')
     try:
         os.mkdir(log)
-        os.mkdir(cache)
-        os.mkdir(txlog)
     except OSError:
         pass
+    try:
+        os.mkdir(cache)
+    except OSError:
+        pass
+    try:
+        os.mkdir(txlog)
+    except OSError:
+        pass                
 
     NETWORKINPUT = inputp('\nNetwork Type (enter either mainnet or testnet)\n >Network Type:', NETWORK_INPUT)
     if NETWORKINPUT == 'testnet':
@@ -1283,8 +1289,13 @@ if __name__ == "__main__":
 
     try:
         os.mkdir(mintlogname)
+    except OSError:
+        print('\nError creating minted folder for manual minting!')
+        pass
+    try:
         os.mkdir(logname)
     except OSError:
+        print('\nError creating profiles folder!')
         pass
 
     # Setup Settings Dictionary
@@ -1352,7 +1363,13 @@ if __name__ == "__main__":
             TXLOG = os.path.join(os.path.join(LOG, 'txs'), '')
             try:
                 os.mkdir(LOG)
+            except OSError:
+                pass
+            try:
                 os.mkdir(CACHE)
+            except OSError:
+                pass
+            try:
                 os.mkdir(TXLOG)
             except OSError:
                 pass
