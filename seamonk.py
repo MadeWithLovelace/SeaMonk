@@ -1290,12 +1290,10 @@ if __name__ == "__main__":
     try:
         os.mkdir(mintlogname)
     except OSError:
-        print('\nError creating minted folder for manual minting!')
         pass
     try:
         os.mkdir(logname)
     except OSError:
-        print('\nError creating profiles folder!')
         pass
 
     # Setup Settings Dictionary
