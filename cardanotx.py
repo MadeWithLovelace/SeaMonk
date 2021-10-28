@@ -101,7 +101,14 @@ def process_tokens(profile_name, tokens, wallet_addr, amnt = ['all'], return_ada
         utxo_string = get_utxo_string(tokens, amnt, exclude, flag)
         if len(utxo_string) != 0:
             #minimum_cost = find_min(profile_name, cache, utxo_string) -> Was +str(minimum_cost) blow where return_ada is TODO Fix this function
-            return ['--tx-out', wallet_addr+"+"+return_ada+"+"+utxo_string]
+            # TODO: refine this section and the else next section
+            if calc_ada == True:
+                utxo_int = get_utxo_string(tokens, amnt, exclude, flag, calc_ada)
+                if utxo_int > 0:
+                    utxo_int = utxo_int - int(reserve)
+                    return ['--tx-out', wallet_addr+"+"+str(utxo_int)+"+"+utxo_string]
+            else:
+                return ['--tx-out', wallet_addr+"+"+return_ada+"+"+utxo_string]
         else:
             return []
     else:

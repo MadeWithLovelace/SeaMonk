@@ -1229,7 +1229,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                 if NFT_ADDR != MINT_ADDR and NFT_ADDR != WATCH_ADDR and len(NFT_ADDR) == 0:
                     NFT_ADDR = RECIPIENT_ADDR
                 with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nMinting to address: '+NFT_ADDR+' | json_file:'+NFT_DATA[2]+' | policy_file:'+NFT_DATA[2] + ' | name:' + NFT_DATA[0] + ' | lock:' + NFT_DATA[3])
+                    runlog.write('\nMinting to address: '+NFT_ADDR+' | json_file:'+NFT_DATA[2]+' | policy_file:'+NFT_DATA[5] + ' | name:' + NFT_DATA[0] + ' | lock:' + NFT_DATA[3])
                     runlog.close()
                 tx_final_hash = mint(PROFILE_NAME, MINTSRC, PROFILELOG, PROFILECACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, RETURN_ADA, NFT_DATA, filePre)
 
@@ -1361,16 +1361,16 @@ if __name__ == "__main__":
             MINT_CLI = input('\nCardano CLI path (or leave blank if in system path):')
             if len(MINT_CLI) == 0:
                 MINT_CLI = 'cardano-cli'
-            MINT_NETWORK = 'testnet'#input('\nEnter the Network Type (mainnet or testnet):')
+            MINT_NETWORK = input('\nEnter the Network Type (mainnet or testnet):')
             if MINT_NETWORK == 'testnet':
-                MINT_MAGIC = '1097911063'#input('\nTestnet Magic Number:')
+                MINT_MAGIC = input('\nTestnet Magic Number:')
                 MINT_NETWORK = MINT_NETWORK + '-magic'
-            MINT_SKEY = '/home/user/cardano/wallets/nftests.skey'#input('\nEnter the Minting Wallet Signing Key (.skey) File Path:')
-            MINT_VKEY = '/home/user/cardano/wallets/nftests.vkey'#input('\nEnter the Minting Wallet Verification Key (.vkey) File Path:')
-            MINT_POLICY_SKEY = '/home/user/cardano/wallets/policy.skey'#input('\nEnter the Minting Policy Signing Key (.skey) File Path:')
-            MINT_POLICY_VKEY = '/home/user/cardano/wallets/policy.vkey'#input('\nEnter the Minting Policy Verification Key (.vkey) File Path:')
-            NFT_ADDR = 'addr_test1qpwqz542nu26zxnyzrhd5d3w6f9dtk27jjxmjkxfrma0q9j9uap0rq4t2709dqju27za2nqpg928kcl8edgp3hmvtslqq7kr40'#input('\nNFT or Token Recipient Address\n(or leave blank to mint at the same address as your minting wallet skey):')
-            MINT_NFT_NAME = 'HauntedHoods02'#input('\nNFT or Token Name:')
+            MINT_SKEY = input('\nEnter the Minting Wallet Signing Key (.skey) File Path:')
+            MINT_VKEY = input('\nEnter the Minting Wallet Verification Key (.vkey) File Path:')
+            MINT_POLICY_SKEY = input('\nEnter the Minting Policy Signing Key (.skey) File Path:')
+            MINT_POLICY_VKEY = input('\nEnter the Minting Policy Verification Key (.vkey) File Path:')
+            NFT_ADDR = input('\nNFT or Token Recipient Address\n(or leave blank to mint at the same address as your minting wallet skey):')
+            MINT_NFT_NAME = input('\nNFT or Token Name:')
 
             # Setup profile-specific cache and log folders
             LOG = os.path.join(os.path.join(MINTROOT, MINT_NFT_NAME), '')
@@ -1392,15 +1392,15 @@ if __name__ == "__main__":
                 except OSError:
                     pass
 
-            MINT_NFT_QTY = '1'#input('\nQuantity (usually 1 for an NFT):')
-            PREP_JSON = 'yes'#input('\nPrepare and use the svg-html json template? (yes or no):')
+            MINT_NFT_QTY = input('\nQuantity (usually 1 for an NFT):')
+            PREP_JSON = input('\nPrepare and use the svg-html json template? (yes or no):')
             if PREP_JSON == 'yes' or PREP_JSON == 'Yes':
                 print('\nAll manually edit fields should be prepared AFTER this function generates your json file')
 
                 # For passing address for visible string:
-                NFT_CUSTOM = 'addr_test1qpwqz542nu26zxnyzrhd5d3w6f9dtk27jjxmjkxfrma0q9j9uap0rq4t2709dqju27za2nqpg928kcl8edgp3hmvtslqq7kr40'#input('\nValue for "Minting Master" field (buyers address):')
-                SVG_HTML = '/home/user/Downloads/optimizedSVGs/CypherMonksBurntWH.svg'#input('\nEnter path to SVG file for HTML embedding:')
-                SVG_IMG = '/home/user/Downloads/optimizedSVGs/CypherMonksBurntWH.svg'#input('\nIF DIFFERENT, enter path to SVG file for Image meta:')
+                NFT_CUSTOM = input('\nValue for "Minting Master" field (buyers address):')
+                SVG_HTML = input('\nEnter path to SVG file for HTML embedding:')
+                SVG_IMG = input('\nIF DIFFERENT, enter path to SVG file for Image meta:')
                 if not SVG_IMG:
                     SVG_IMG = SVG_HTML
                 firstpart = NFT_CUSTOM[0:16]
@@ -1462,11 +1462,11 @@ if __name__ == "__main__":
                     jsonout.close()
                 MINT_NFT_JSON = out_json
             
-            SAME_POLICY = 'no'#input('\nIs this NFT or Token part of an already existing policy?\n(Yes or No - if this is the first asset minted to a policy answer No):')
+            SAME_POLICY = input('\nIs this NFT or Token part of an already existing policy?\n(Yes or No - if this is the first asset minted to a policy answer No):')
             if SAME_POLICY == 'Yes' or SAME_POLICY == 'yes':
                 MINT_TARGET_TIP = input('\nEnter the Policy Locking Slot Number matching the policy this NFT or Token will mint into\n(If you lost it you can find it within the ".script" file for a previous asset minted into that policy):')
             else:
-                MINT_LAST_TIP = '20000'#input('\nHow Many Slots To Add Until Locked?\n(1 slot ~ 1 second)\nSlots to Add to Current Block Height:')
+                MINT_LAST_TIP = input('\nHow Many Slots To Add Until Locked?\n(1 slot ~ 1 second)\nSlots to Add to Current Block Height:')
             print('\n...Building TX')
 
             POLICY_HASH = tx.get_address_pubkeyhash(MINT_CLI, MINT_POLICY_VKEY)
