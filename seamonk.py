@@ -168,14 +168,18 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
             # Check for refund type: 0 = just a simple refund; 1 = include 40 JUDE & any clue; 2 = include any clue
             ct = 0
             if refund_type == 1:
+                ct = 40
                 # Calculate any clue
                 if magic_price == 0:
                     ct = 41
                 else:
-                    clue_diff = magic_price - refund_amnt
-                    if clue_diff <= 20:
+                    clue_diff = int(refund_amnt) / int(magic_price)
+                    print('\nclue diff:', clue_diff)
+                    if clue_diff >= 0.8:
+                        print('\ndiff is less/equal to 20%')
                         ct = 130
-                    if clue_diff >= 80:
+                    if clue_diff <= 0.2:
+                        print('\ndiff is greater/equal to 80%')
                         ct = 50
                 clue_token = str(ct)
                 refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
@@ -184,10 +188,12 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                 if magic_price == 0:
                     ct = 1
                 else:
-                    clue_diff = magic_price - refund_amnt
-                    if clue_diff <= 20:
+                    clue_diff = int(refund_amnt) / int(magic_price)
+                    if clue_diff >= 0.8:
+                        print('\ndiff is less/equal to 20%')
                         ct = 90
-                    if clue_diff >= 80:
+                    if clue_diff <= 0.2:
+                        print('\ndiff is less/equal to 80%')
                         ct = 10
                 clue_token = str(ct)
                 refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
@@ -1008,10 +1014,13 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
             TK_AMT = int(RESLIST[3])
             TK_NAME = RESLIST[4].strip()
             STAT = int(RESLIST[5])
+            TX_TIME = RESLIST[6]
 
             # If a SC Swap
             if PROFILE_TYPE == 0:
                 if STAT == 0:
+                    # Archive TX and continue
+                    tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                     continue
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n===== Matching TX: '+str(result)+' =====\nRunning whitelist for addr/ada-rec: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD))
@@ -1028,6 +1037,8 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nERROR: Could not file utxo_script_check.json\n')
                         runlog.close()
+                    # Do not archive, continue (keep trying)
+                    continue
                 _, _, sc_tkns, _, _ = tx.get_txin(PROFILE_NAME, 'utxo_script_check.json', COLLATERAL, True, DATUM_HASH)
                 sc_bal = 0
                 for token in sc_tkns:
@@ -1062,6 +1073,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                                 with open(runlog_file, 'a') as runlog:
                                     runlog.write('\nTX attempted, error returned by withdraw')
                                     runlog.close()
+                                # continue to try again (no archive yet)
                                 continue
 
                             # Record the payment as completed, leave whitelist untouched since not a valid swap tx
@@ -1070,9 +1082,13 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                                 runlog.close()
                             payments_file = PROFILELOG + 'payments.log'
                             with open(payments_file, 'a') as payments_a:
-                                payments_a.write(result + '\n')
+                                payments_a.write(result + ',' + TX_TIME + '\n')
                                 payments_a.close()
+
+                            # Archive completed TX
+                            tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                         sleep(5)
+                        # TODO: May need to improve this logic for missed if statement cases
                         continue
                 
                     # Refresh Low SC Balance
@@ -1097,13 +1113,17 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                             with open(runlog_file, 'a') as runlog:
                                 runlog.write('\nTX attempted, error returned by withdraw')
                                 runlog.close()
+                            # continue and try again (do not archive yet)
                             continue
 
                         # Record the payment as completed and remove from whitelist if set to true
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + '\n')
+                            payments_a.write(result + ',' + TX_TIME + '\n')
                             payments_a.close()
+
+                        # Archive completed TX
+                        tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                     
                         # Remove from whitelist if necessary
                         if WLENABLED and WHITELIST_ONCE:
@@ -1139,13 +1159,17 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                                 with open(runlog_file, 'a') as runlog:
                                     runlog.write('\nTX attempted, error returned by withdraw')
                                     runlog.close()
+                                # continue to try again (no archive yet)
                                 continue
                         
                         # Record the payment as completed
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + '\n')
+                            payments_a.write(result + ',' + TX_TIME + '\n')
                             payments_a.close()
+                            
+                        # Archive completed TX
+                        tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                         sleep(5)
                         continue
 
@@ -1160,6 +1184,8 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
             if PROFILE_TYPE == 1:
                 if STAT == 0 or NFT_MINTED == True:
                     if RECIPIENT_ADDR == MINT_ADDR or RECIPIENT_ADDR == WATCH_ADDR:
+                        # Archive internal TX
+                        tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                         continue
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\n--- Check For Payments Found Refundable NFT TX ---\n')
@@ -1196,12 +1222,16 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                             runlog.close()
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
-                            payments_a.write(result + '\n')
+                            payments_a.write(result + ',' + TX_TIME + '\n')
                             payments_a.close()
+
+                        # Archive completed TX
+                        tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
                     else:
                         with open(runlog_file, 'a') as runlog:
                             runlog.write('\nTX attempted, error returned by withdraw')
                             runlog.close()
+                        # Do not archive in this case, just continue and try again
                     continue
 
                 with open(runlog_file, 'a') as runlog:
@@ -1230,8 +1260,12 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                 # Record the payment as completed
                 payments_file = PROFILELOG + 'payments.log'
                 with open(payments_file, 'a') as payments_a:
-                    payments_a.write(result + '\n')
+                    payments_a.write(result + ',' + TX_TIME + '\n')
                     payments_a.close()
+
+                # Archive completed TX
+                tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
+
                 if WLENABLED and WHITELIST_ONCE:
                     clean_wlws = RECIPIENT_ADDR
                     with open(whitelist_file,'r') as read_file:
@@ -1248,6 +1282,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE):
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n' + type_title + ' Failed: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD))
                     runlog.close()
+                # Do not archive, keep trying
         whitelist_r.close()
 
         # Check again and sleep program for NN seconds

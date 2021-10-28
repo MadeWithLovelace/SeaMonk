@@ -224,6 +224,49 @@ def get_smartcontract_addr(profile_name, smartcontract_path):
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
+def archive_tx(profile_name, tx_hash, tx_amnt, tx_time):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
+    # Setup archive file first time
+    tx_archive_file = log + 'tx_archive.log'
+    is_log_file = os.path.isfile(tx_archive_file)
+    if not is_log_file:
+        try:
+            open(tx_archive_file, 'x')
+            with open(tx_archive_file, 'a') as txlog_header:
+                txlog_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'TAmount,' + 'Token,' + 'Time\n')
+                txlog_header.close()
+        except OSError:
+            pass
+ 
+    transactions_file = log + 'transactions.log'
+    with open(transactions_file,'r') as read_file:
+        lines = read_file.readlines()
+        currentLine = 0
+    with open(transactions_file,'w') as write_file:
+        for line in lines:
+            line_list = line.split(',')
+            if line_list[2] == 'Amount':
+                write_file.write(line)
+            else:
+                hashL = line_list[0].strip()
+                amntL = int(line_list[2].strip())
+                timeL = line_list[5].strip()
+                hashP = tx_hash.strip()
+                amntP = int(tx_amnt)
+                timeP = tx_time.strip()
+                if hashL == hashP and amntL == amntP and timeL == timeP:
+                    print('\nmatch!')
+                    with open(tx_archive_file, 'a') as archive_file:
+                        archive_file.write(line + '\n')
+                        archive_file.close()
+                else:
+                    write_file.write(line)
+                
+    read_file.close()
+    write_file.close()
+
 def check_for_tx(profile_name, tx_hash_match):
     """
     Checks for a matching transaction
@@ -276,7 +319,11 @@ def log_new_txs(profile_name, api_id, wallet_addr):
         runlog.write('\nTX Logger Running at ' + time_now)
         runlog.close()
 
-    # Setup file
+    # Setup files
+    tx_archive_exist = False
+    tx_archive_file = log + 'tx_archive.log'
+    txa_is = os.path.isfile(tx_archive_file)
+
     txcount = 0
     txlog_file = log + 'transactions.log'
     is_log_file = os.path.isfile(txlog_file)
@@ -284,7 +331,7 @@ def log_new_txs(profile_name, api_id, wallet_addr):
         try:
             open(txlog_file, 'x')
             with open(txlog_file, 'a') as txlog_header:
-                txlog_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'TAmount,' + 'Token\n')
+                txlog_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'TAmount,' + 'Token,' + 'Time\n')
                 txlog_header.close()
         except OSError:
             pass
@@ -307,16 +354,27 @@ def log_new_txs(profile_name, api_id, wallet_addr):
 
     # Foreach row compare against each line of tx file
     for x in range(2, len(utxoTableRows)):
+        if txa_is:
+            txarchive_r = open(tx_archive_file, 'r')
         txlog_r = open(txlog_file, 'r')
         cells = utxoTableRows[x].split()
         tk_amt = '0'
         tx_hash = cells[0].decode('utf-8')
+        tx_amnt = cells[2].decode('utf-8')
         flag = 0
+        aindex = 1
         index = 1
-        # Foreach line of the file
+        # Foreach line of the file compare against both tx logs
+        if txa_is:
+            for txarchiveline in txarchive_r:
+                aindex += 1
+                if tx_hash in txarchiveline and tx_amnt in txarchiveline:
+                    flag = 1
+                    txarchive_r.close()
+                    break
         for line in txlog_r:
             index += 1
-            if tx_hash in line:
+            if tx_hash in line and tx_amnt in line:
                 flag = 1
                 txlog_r.close()
                 break
@@ -348,7 +406,8 @@ def log_new_txs(profile_name, api_id, wallet_addr):
                                     txwrite[3] = str(amounts['quantity'])
                                     txwrite[4] = amounts['unit']
                     txlog_a = open(txlog_file, 'a')
-                    txlog_a.write(','.join(txwrite) + '\n')
+                    log_time = strftime("%Y-%m-%d_%H-%M-%S", gmtime())
+                    txlog_a.write(','.join(txwrite) + ',' + log_time.strip() + '\n')
                     txlog_a.close()
             txlog_r.close()
     return txcount
@@ -392,7 +451,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
         try:
             open(payments_file, 'x')
             with open(payments_file, 'a') as payments_header:
-                payments_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'Token Amnt,' + 'Token Name,' + 'Matching\n')
+                payments_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'Token Amnt,' + 'Token Name,' + 'Matching,' + 'Time\n')
                 payments_header.close()
         except OSError:
             pass
@@ -412,6 +471,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
             tx_amnt = int(cells[2])
             tk_amnt = int(cells[3])
             tk_name = cells[4]
+            tx_time = cells[5]
             flag = 0
             readpay_index = 0
             payments_r = open(payments_file, 'r')
@@ -421,7 +481,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                     readpay_index += 1
                     continue
                 readpay_index += 1
-                if tx_hash in line:
+                if tx_hash in line and tx_time in line:
                     flag = 1
                     break
             if tx_addr == watch_addr or tx_addr == sc_addr:
@@ -443,12 +503,12 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                             record_as_payment = True
                         else:
                             record_as_payment = False
-                elif compare_addr == True:
+                elif compare_addr == True and compare_amnt == False:
                     if tx_addr == sender_addr:
                         record_as_payment = True
                     else:
                         record_as_payment = False
-                elif compare_amnt == True:
+                elif compare_amnt == True and compare_addr == False:
                     if min_watch > 0 and tx_amnt >= min_watch:
                         record_as_payment = True
                     elif tx_amnt == amount:
@@ -463,7 +523,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                     stat = '0'
             record_as_payment = False
             payments_r.close()
-    return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',' + stat
+    return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',' + stat + ',' + tx_time
     txlog_r.close()
     return return_data
 
@@ -821,4 +881,5 @@ def submit_tx(profile_name, filePre):
         sleep(2)
         log_new_txs(profile_name, api_id, watch_addr)
         tx_hash_flag = check_for_tx(profile_name, tx_hash)
+    #TODO: Archive the returned TX
     return tx_hash
