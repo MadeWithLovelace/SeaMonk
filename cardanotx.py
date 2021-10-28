@@ -38,6 +38,24 @@ def set_vars(profile_name):
             testnet = True
     return cli, network, magic, log, cache, txlog, testnet
 
+def get_token_string_id(full_token):
+    t = full_token.split('.')
+    hex_name = base64.b16encode(bytes(str(t[1]).encode('utf-8'))).lower()
+    return t[0] + hex_name.decode('utf-8')
+
+def encode_to_base64(file_path, type, chunkify = True):
+    if type == 'html':
+        pre = 'data:text/html;base64,'
+    if type == 'svg':
+        pre = 'data:image/svg+xml;base64,'
+    with open(file_path, 'r') as html:
+        html_string = html.read()
+        html_result = pre + base64.b64encode(bytes(html_string, 'utf-8')).decode('utf-8').strip()
+        if chunkify:
+            x = 64
+            html_result = [html_result[y-x:y] for y in range(x, len(html_result)+x,x)]
+    return html_result
+
 def get_token_identifier(policy_id, token_name):
     """
     Takes the blake2b hash of the concat of the policy ID and token name.
@@ -60,7 +78,7 @@ def get_tx_hash(profile_name, filePre):
         txlog + filePre + 'tx.signed'
     ]
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
-    return p
+    return p.strip()
 
 def get_hash_value(profile_name, value):
     # Defaults and overrides
@@ -75,7 +93,8 @@ def get_hash_value(profile_name, value):
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
     return p
 
-def process_tokens(profile_name, tokens, wallet_addr, amnt='all', return_ada='2000000', exclude='', flag=True):
+# TODO: Fix find_min function and/or place multiple assets and seperate UTxOs after reaching a limit
+def process_tokens(profile_name, tokens, wallet_addr, amnt = ['all'], return_ada = '2000000', exclude = '', flag = True, calc_ada = False, reserve = 2000000):
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     if len(tokens) > 1:
@@ -86,6 +105,11 @@ def process_tokens(profile_name, tokens, wallet_addr, amnt='all', return_ada='20
         else:
             return []
     else:
+        if calc_ada == True:
+            utxo_int = get_utxo_string(tokens, amnt, exclude, flag, calc_ada)
+            if utxo_int > 0:
+                utxo_int = utxo_int - int(reserve)
+                return ['--tx-out', wallet_addr+"+"+str(utxo_int)]
         return []
 
 def find_min(profile_name, cache, utxo_string):
@@ -107,16 +131,25 @@ def find_min(profile_name, cache, utxo_string):
         p = 2000000
     return p
 
-def get_utxo_string(tokens, amnt, exclude=[], flag=True):
+def get_utxo_string(tokens, amnt, exclude=[], flag=True, calc_ada = False):
     utxo_string = ''
+    if calc_ada == True:
+        quant = 0
+        for lovelace in tokens:
+            if lovelace == 'lovelace':
+                quant += int(tokens[lovelace])
+        return quant
     for token in tokens:
         if token == 'lovelace':
             continue
         for t_qty in tokens[token]:
-            if amnt == 'all':
+            if amnt[0] == 'all':
                 quant = str(tokens[token][t_qty])
+            elif amnt[0] == 'except':
+                qbal = int(tokens[token][t_qty]) - int(amnt[1])
+                quant = str(qbal)
             else:
-                quant = str(amnt)
+                quant = str(amnt[0])
             if len(exclude) != 0:
                 if flag is True:
                     if t_qty not in exclude and token not in exclude:
@@ -137,7 +170,7 @@ def get_address_pubkeyhash(cli_path, vkey_path):
         vkey_path
     ]
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
-    return p
+    return p.strip()
 
 def get_token_id(profile_name, out_script):
     # Defaults and overrides
@@ -150,7 +183,7 @@ def get_token_id(profile_name, out_script):
         out_script
     ]
     p = subprocess.Popen(func, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
-    return p
+    return p.strip()
 
 def get_wallet_addr(profile_name, vkey_path):
     # Defaults and overrides
@@ -238,7 +271,7 @@ def log_new_txs(profile_name, api_id, wallet_addr):
         try:
             open(txlog_file, 'x')
             with open(txlog_file, 'a') as txlog_header:
-                txlog_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount' + '\n')
+                txlog_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'TAmount,' + 'Token\n')
                 txlog_header.close()
         except OSError:
             pass
@@ -255,13 +288,16 @@ def log_new_txs(profile_name, api_id, wallet_addr):
     if testnet:
         tx_list.insert(4, magic)
     rawUtxoTable = subprocess.check_output(tx_list)
+
     # Output rows
     utxoTableRows = rawUtxoTable.strip().splitlines()
+
     # Foreach row compare against each line of tx file
     for x in range(2, len(utxoTableRows)):
-        cells = utxoTableRows[x].split()
-        tx_hash = cells[0].decode('utf-8')
         txlog_r = open(txlog_file, 'r')
+        cells = utxoTableRows[x].split()
+        tk_amt = '0'
+        tx_hash = cells[0].decode('utf-8')
         flag = 0
         index = 1
         # Foreach line of the file
@@ -274,27 +310,33 @@ def log_new_txs(profile_name, api_id, wallet_addr):
         if flag == 1:
             continue
         if flag == 0:
-            with open(txlog_file, 'a') as txlog_a:
-                # Get curl data from blockfrost on new tx's only
-                headers = {'project_id': api_id}
-                cmd = s[profile_name]['api_uri'] + 'txs/' + tx_hash + '/utxos'
-                tx_result = requests.get(cmd, headers=headers)
+            # Get curl data from blockfrost on new tx's only
+            headers = {'project_id': api_id}
+            cmd = s[profile_name]['api_uri'] + 'txs/' + tx_hash + '/utxos'
+            tx_result = requests.get(cmd, headers=headers)
                 
-                # Check if hash found at api
-                if 'status_code' in tx_result.json():
-                    status_code = tx_result.json()['status_code']
+            # Check if hash found at api
+            if 'status_code' in tx_result.json():
+                status_code = tx_result.json()['status_code']
+                continue
+            for tx_data in tx_result.json()['inputs']:
+                from_addr = tx_data['address']
+            for output in tx_result.json()['outputs']:
+                txwrite = [tx_hash, from_addr, '0', '0', 'none']
+                if output['address'] == wallet_addr:
+                    for amounts in output['amount']:
+                        if amounts['unit'] == 'lovelace':
+                            txcount += 1
+                            txwrite[2] = str(amounts['quantity'])
+                        else:
+                            if s[profile_name]['type'] == 1:
+                                fee_token = get_token_string_id(s[profile_name]['tokenid'] + '.' + s[profile_name]['tokenname'])
+                                if amounts['unit'] == fee_token:
+                                    txwrite[3] = str(amounts['quantity'])
+                                    txwrite[4] = amounts['unit']
+                    txlog_a = open(txlog_file, 'a')
+                    txlog_a.write(','.join(txwrite) + '\n')
                     txlog_a.close()
-                    continue
-                for tx_data in tx_result.json()['inputs']:
-                    from_addr = tx_data['address']
-                for output in tx_result.json()['outputs']:
-                    if output['address'] == wallet_addr:
-                        for amounts in output['amount']:
-                            if amounts['unit'] == 'lovelace':
-                                txcount += 1
-                                pay_amount = amounts['quantity']
-                                txlog_a.write(tx_hash + ',' + from_addr + ',' + str(pay_amount) + '\n')
-                txlog_a.close()
             txlog_r.close()
     return txcount
 
@@ -316,6 +358,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
     compare_addr = True
     compare_amnt = True
     record_as_payment = False
+    stat = '0'
     if sender_addr == 'none':
         compare_addr = False
     if amount == 0 and min_watch == 0:
@@ -336,7 +379,7 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
         try:
             open(payments_file, 'x')
             with open(payments_file, 'a') as payments_header:
-                payments_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount\n')
+                payments_header.write('UTxO_Hash,' + 'FromAddr,' + 'Amount,' + 'Token Amnt,' + 'Token Name,' + 'Matching\n')
                 payments_header.close()
         except OSError:
             pass
@@ -354,6 +397,8 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
             tx_hash = cells[0]
             tx_addr = cells[1]
             tx_amnt = int(cells[2])
+            tk_amnt = int(cells[3])
+            tk_name = cells[4]
             flag = 0
             readpay_index = 0
             payments_r = open(payments_file, 'r')
@@ -400,13 +445,12 @@ def check_for_payment(profile_name, api_id, wallet_addr, amount = 0, min_watch =
                 else:
                     record_as_payment = True
                 if record_as_payment == True:
-                    return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt)
+                    stat = '1'
+                if record_as_payment == False:
+                    stat = '0'
             record_as_payment = False
             payments_r.close()
-    if len(return_data) > 1:
-        with open(runlog_file, 'a') as runlog:
-            runlog.write('\n--- Check For Payments Result:: ---\n' + return_data)
-            runlog.close()
+    return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',' + stat
     txlog_r.close()
     return return_data
 
@@ -453,7 +497,7 @@ def get_utxo(profile_name, token_wallet, file_name):
     p = subprocess.Popen(func)
     p.communicate()
 
-def get_txin(profile_name, file_name, collateral, spendable = False, allowed_datum = '', check_amnt = 0):
+def get_txin(profile_name, file_name, collateral = 2000000, spendable = False, allowed_datum = '', check_amnt = 0):
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
 
@@ -525,7 +569,7 @@ def get_txin(profile_name, file_name, collateral, spendable = False, allowed_dat
         return txin_list, txincollat_list, amount, False, data_list
     return txin_list, txincollat_list, amount, True, data_list
 
-def get_tip(profile_name, add_slots = 1000):
+def get_tip(profile_name, add_slots = 1000, target_slot = 0):
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
     func = [
@@ -542,7 +586,115 @@ def get_tip(profile_name, add_slots = 1000):
     p.communicate()
     with open(cache+"latest_tip.json", "r") as tip_data:
         td = json.load(tip_data)
-    return int(td['slot']), int(td['slot']) + add_slots, int(td['block'])
+    latest_tip = int(td['slot'])
+    block = int(td['block'])
+    if target_slot > 0:
+        return latest_tip, target_slot, block
+    else:
+        return latest_tip, latest_tip + add_slots, block
+
+def calc_fee(profile_name, counts):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
+    # Begin log file
+    runlog_file = log + 'run.log'
+    fee = [
+        cardano_cli,
+        'transaction',
+        'calculate-min-fee',
+        '--tx-body-file',
+        cache+'tx.tmp',
+        '--tx-in-count',
+        str(counts[0]),
+        '--tx-out-count',
+        str(counts[1]),
+        '--witness-count',
+        str(counts[2]),
+        '--' + network,
+        '--protocol-params-file',
+        cache + 'protocol.json'
+    ]
+    if testnet:
+        fee.insert(12, magic)    
+    p = subprocess.Popen(fee, stdout=subprocess.PIPE).stdout.read().decode('utf-8')
+    s = str(p).strip()
+    f = ''.join(filter(str.isdigit, s))
+    return f
+
+def build_raw_tx(profile_name, counts, until_tip, utxo_in, utxo_col, utxo_out, tx_data, manual = False, fee = 0):
+    # Defaults and overrides
+    cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
+
+    # Begin log file
+    runlog_file = log + 'run.log'
+
+    if fee == 0:
+        # Do raw build for fee calculation
+        pre = [
+            cardano_cli,
+            'transaction',
+            'build-raw',
+            '--alonzo-era',
+            '--fee',
+            '0',
+            '--invalid-hereafter',
+            str(until_tip),
+            '--out-file',
+            cache+'tx.tmp'
+        ]
+        pre += utxo_in
+        pre += utxo_col
+        pre += utxo_out
+        pre += tx_data
+        p = subprocess.Popen(pre)
+        p.communicate()
+
+        # Return calculated fee
+        get_fee = calc_fee(profile_name, counts)
+        return int(get_fee)
+
+    # Run build with calculated fee
+    fee = str(fee)
+    func = [
+        cardano_cli,
+        'transaction',
+        'build-raw',
+        '--alonzo-era',
+        '--fee',
+        fee,
+        '--invalid-hereafter',
+        str(until_tip),
+        '--out-file',
+        cache+'tx.draft'
+    ]
+    func += utxo_in
+    func += utxo_col
+    func += utxo_out
+    func += tx_data
+    if manual:
+        print('\n================================= TX Built =================================')
+        print('\nCheck transaction details and approve before submitting to the blockchain:\n')
+        print('\n----------------------------------------------------------------------------')
+        joined_func_out = ' '.join(func)
+        print(joined_func_out)
+        print('\n----------------------------------------------------------------------------')
+        VALUES_CORRECT = input('\n\nMint this? (enter yes or no):')
+        if VALUES_CORRECT == ('yes'):
+            print('\n\nContinuing . . . \n')
+        else:
+            print('\n\nQuitting . . .\n\n')
+            exit(0)
+    with open(runlog_file, 'a') as runlog:
+        time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+        runlog.write('\nTX at: ' + time_now)
+        runlog.write('\n-----------------TX Built--------------------\n')
+        joined_func = ' '.join(func)
+        runlog.write(joined_func)
+        runlog.write('\n-------------------End------------------\n')
+        runlog.close()
+    p = subprocess.Popen(func)
+    p.communicate()
 
 def build_tx(profile_name, change_addr, until_tip, utxo_in, utxo_col, utxo_out, tx_data, manual = False):
     # Defaults and overrides
