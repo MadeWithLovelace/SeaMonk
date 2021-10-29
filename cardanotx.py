@@ -858,14 +858,15 @@ def sign_tx(profile_name, witnesses, filePre):
 def submit_tx(profile_name, filePre, tx_hash_in, tx_amnt_in, tx_time):
     # Defaults and overrides
     cardano_cli, network, magic, log, cache, txlog, testnet = set_vars(profile_name)
-    api_id = s[profile_name]['api']
-    watch_addr = s[profile_name]['watchaddr']
 
-    # Get latest transactions first
-    log_new_txs(profile_name, api_id, watch_addr)
+    if tx_hash_in != 'mint':
+        api_id = s[profile_name]['api']
+        watch_addr = s[profile_name]['watchaddr']
+        # Get latest transactions first
+        log_new_txs(profile_name, api_id, watch_addr)
 
     # Archive TX
-    if tx_hash_in != 'none':
+    if tx_hash_in != 'none' and tx_hash_in != 'mint':
         archive_tx(profile_name, tx_hash_in, tx_amnt_in, tx_time)
         
     # Begin log file
@@ -884,18 +885,24 @@ def submit_tx(profile_name, filePre, tx_hash_in, tx_amnt_in, tx_time):
     p = subprocess.Popen(func)
     p.communicate()
 
-    # Get latest transactions after, loop check TX hash and log new txs
-    log_new_txs(profile_name, api_id, watch_addr)
+    if tx_hash_in != 'mint':
+        # Get latest transactions after, loop check TX hash and log new txs
+        log_new_txs(profile_name, api_id, watch_addr)
+
+    # Get Hash
     tx_hash = get_tx_hash(profile_name, filePre)
     tx_hash = tx_hash.strip()
-    with open(runlog_file, 'a') as runlog:
-        runlog.write('\nWaiting for ' + filePre + 'tx to clear, with hash: ' + tx_hash)
-        runlog.close()
-    tx_hash_flag = False
-    while not tx_hash_flag:
-        sleep(2)
-        log_new_txs(profile_name, api_id, watch_addr)
-        tx_hash_flag = check_for_tx(profile_name, tx_hash)
+
+    if tx_hash_in != 'mint':        
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\nWaiting for ' + filePre + 'tx to clear, with hash: ' + tx_hash)
+            runlog.close()
+        tx_hash_flag = False
+        while not tx_hash_flag:
+            sleep(2)
+            log_new_txs(profile_name, api_id, watch_addr)
+            tx_hash_flag = check_for_tx(profile_name, tx_hash)
     # Archive self tx (speeds up processing)
-    archive_tx(profile_name, tx_hash, 0, 'none')
+    if tx_hash_in != 'none' and tx_hash_in != 'mint':
+        archive_tx(profile_name, tx_hash, 0, 'none')
     return tx_hash

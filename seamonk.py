@@ -823,6 +823,10 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         # For passing address for visible string:
         SVG_HTML = input('\nEnter path to SVG file for HTML embedding:')
         SVG_IMG = input('\nIF DIFFERENT, enter path to SVG file for Image meta:')
+        if not SVG_HTML:
+            SVG_HTML = log + MINT_NFT_NAME + '.svg'
+            print('\nPlace your SVG file for this NFT at the following location and name accordingly:',SVG_HTML)
+            input('\nOnce the SVG image is in place, press any key to continue...')
         if not SVG_IMG:
             SVG_IMG = SVG_HTML
         # Get raw svg data to embed into HTML
@@ -859,7 +863,6 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
             jsonout.close()
         MINT_NFT_JSON = out_json
         print('\nYour NFT JSON file has been generated, before proceeding do any manual edits, leaving 000_POLICY_ID_000 in-tact for the next stages of processing. JSON File Located At: ', out_json)
-        input('\nPress any key to continue and save these settings!')
         
         POLICY_HASH = tx.get_address_pubkeyhash(CLI_PATH, MINT_POLICY_VKEY)
         NFT_DATA = [MINT_NFT_NAME, MINT_NFT_QTY, MINT_NFT_JSON, MINT_TARGET_TIP, MINT_LAST_TIP, POLICY_HASH]
@@ -1332,42 +1335,8 @@ if __name__ == "__main__":
     except OSError:
         pass
 
-    # Setup Settings Dictionary
-    settings_file = 'profile.json'
-    is_settings_file = os.path.isfile(settings_file)
-    if not is_settings_file:
-        setup(LOGROOT)
-    
-    # Get any set profile name
-    PROFILE_NAME = ''
-    if len(PROFILE_PASSED) > 0:
-        PROFILE_NAME = PROFILE_PASSED
-
-    # Load settings
-    load_profile = json.load(open(settings_file, 'r'))
-    if len(PROFILE_NAME) == 0:
-        PROFILE_NAME = list(load_profile.keys())[0]
-    PROFILE = load_profile[PROFILE_NAME]
-    API_ID = PROFILE['api']
-    WATCH_ADDR = PROFILE['watchaddr']
-    PROFILELOG = PROFILE['log']
-    PROFILECACHE = PROFILE['cache']
-    PROFILE_TYPE = PROFILE['type']
-    TOKEN_POLICY_ID = PROFILE['tokenid']
-    EXPECT_ADA = PROFILE['expectada']
-    COLLATERAL = PROFILE['collateral']
-
     # Pre-Profile Functions (such as manual minting)
     if len(OPTION_PASSED) > 0:
-        if OPTION_PASSED == 'reconfigure':
-            setup(LOGROOT, PROFILE_NAME, True)
-
-        if OPTION_PASSED == 'new_profile':
-            setup(LOGROOT, PROFILE_NAME, False, True)
-
-        if OPTION_PASSED == 'get_transactions':
-            running = False
-
         if OPTION_PASSED == 'mint':
             MINT_NETWORK = 'mainnet'
             MINT_ADDR = 'none'
@@ -1426,6 +1395,10 @@ if __name__ == "__main__":
                 NFT_CUSTOM = input('\nValue for "Minting Master" field (buyers address):')
                 SVG_HTML = input('\nEnter path to SVG file for HTML embedding:')
                 SVG_IMG = input('\nIF DIFFERENT, enter path to SVG file for Image meta:')
+                if not SVG_HTML:
+                    SVG_HTML = LOG + MINT_NFT_NAME + '.svg'
+                    print('\nPlace your SVG file for this NFT at the following location and name accordingly:',SVG_HTML)
+                    input('\nOnce the SVG image is in place, press any key to continue...')
                 if not SVG_IMG:
                     SVG_IMG = SVG_HTML
                 firstpart = NFT_CUSTOM[0:16]
@@ -1471,7 +1444,6 @@ if __name__ == "__main__":
                     jsonout.close()
                 MINT_NFT_JSON = out_json
                 print('\nYour NFT JSON file has been generated, before proceeding do any manual edits, leaving 000_POLICY_ID_000 in-tact for the next stages of processing. JSON File Located At: ', out_json)
-                #input('\nPress any key to continue')
 
             else:
                 MINT_NFT_JSON = input('\nPath to this NFT ready-to-mint JSON file\n(Must have 000_POLICY_ID_000 in the policy section and 000_NAME_000 in the main name section, both inside qoutes):')
@@ -1500,13 +1472,54 @@ if __name__ == "__main__":
             MINT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
             if len(NFT_ADDR) == 0:
                 NFT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
-            minted_hash, policyID, policy_tip = mint(PROFILE, MINTSRC, LOG, CACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, '2000000', NFT_DATA, 'mint-' + MINT_NFT_NAME, ['none','',''], True)
+            print('\nMAKE CERTAIN YOU HAVE DONE ANY AND ALL MANUAL CHANGES TO THIS NFT META IN THE JSON FILE BEFORE CONTINUING!')
+            input('Press any key when ready, to continue...MUST HAVE OVER 5 ADA AT MINTING ADDR')
+            input('Are you ABSOLUTELY CERTAIN your json file is ready? You can copy/paste it into pool.pm/test/metadata to make sure!...if you are sure, press any key')
+            minted_hash, policyID, policy_tip = mint(PROFILE, MINTSRC, LOG, CACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, '5000000', NFT_DATA, 'mint-' + MINT_NFT_NAME, ['mint','',''], True)
             print('\nCompleted - (TX Hash return is ' + minted_hash + ')')
             print('\nIMPORTANT: Take note of the following Policy ID and Policy Locking Slot Number. If you will be minting more NFTs to this same Policy ID, you will need to enter the following Policy Locking Slot Number when minting another NFT into this policy.')
             print('\n    > Asset Name: ', policyID + '.' + MINT_NFT_NAME)
             print('\n    > Minted Qty: ', MINT_NFT_QTY)
             print('\n    > Policy ID: ', policyID)
             print('\n    > Policy Locking Slot Number: ', policy_tip)
+            exit(0)
+
+    # Setup Settings Dictionary
+    settings_file = 'profile.json'
+    is_settings_file = os.path.isfile(settings_file)
+    if not is_settings_file:
+        setup(LOGROOT)
+    
+    # Get any set profile name
+    PROFILE_NAME = ''
+    if len(PROFILE_PASSED) > 0:
+        PROFILE_NAME = PROFILE_PASSED
+
+    # Load settings
+    load_profile = json.load(open(settings_file, 'r'))
+    if len(PROFILE_NAME) == 0:
+        PROFILE_NAME = list(load_profile.keys())[0]
+    PROFILE = load_profile[PROFILE_NAME]
+    API_ID = PROFILE['api']
+    WATCH_ADDR = PROFILE['watchaddr']
+    PROFILELOG = PROFILE['log']
+    PROFILECACHE = PROFILE['cache']
+    PROFILE_TYPE = PROFILE['type']
+    TOKEN_POLICY_ID = PROFILE['tokenid']
+    EXPECT_ADA = PROFILE['expectada']
+    COLLATERAL = PROFILE['collateral']
+
+    if len(OPTION_PASSED) > 0:
+        if OPTION_PASSED == 'reconfigure':
+            setup(LOGROOT, PROFILE_NAME, True)
+
+        elif OPTION_PASSED == 'new_profile':
+            setup(LOGROOT, PROFILE_NAME, False, True)
+
+        elif OPTION_PASSED == 'get_transactions':
+            running = False
+        else:
+            print('\nOption not recognized, exiting...')
             exit(0)
 
     if PROFILE_TYPE == 0:
