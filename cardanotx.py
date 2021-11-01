@@ -13,6 +13,17 @@ is_settings_file = os.path.isfile(settings_file)
 if is_settings_file:
     s = json.load(open(settings_file, 'r'))
 
+def subp_proc(list, log):
+    runlog_file = log + 'run.log'
+    try:
+        return subprocess.check_output(list)
+    except subprocess.CalledProcessError as e:
+        with open(runlog_file, 'a') as runlog:
+            runlog.write('\nError in subprocess')
+            runlog.write(e.output)
+            runlog.write('\n')
+            runlog.close()
+
 def set_vars(profile_name):
     # Defaults and overrides
     if type(profile_name) is list:
@@ -350,7 +361,8 @@ def log_new_txs(profile_name, api_id, wallet_addr):
     ]
     if testnet:
         tx_list.insert(4, magic)
-    rawUtxoTable = subprocess.check_output(tx_list)
+
+    rawUtxoTable = subp_proc(tx_list, log)
 
     # Output rows
     utxoTableRows = rawUtxoTable.strip().splitlines()
