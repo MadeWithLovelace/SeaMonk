@@ -476,7 +476,7 @@ def process_tally(default_settings, address = 'none', amount = 0):
             
                 # Tally matches
                 if check_addr == check_tx_addr:
-                    last_tally += tx_tally
+                    last_tally = tx_tally
         
         # Add last matching line tally to current amount and return for checking and possible payments log
         tally += last_tally
