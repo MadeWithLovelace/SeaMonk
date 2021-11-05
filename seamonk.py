@@ -1103,19 +1103,6 @@ def tx_processor(DEFAULT_SETTINGS, CUSTOM_SETTINGS):
         BLOCKTIME = PROFILE['blocktime']
         AUCTIONEND = PROFILE['auctionend']
 
-    # Instantiate log for profile
-    runlog_file = PROFILELOG + 'run.log'
-    is_runlog_file = os.path.isfile(runlog_file)
-    if not is_runlog_file:
-        try:
-            open(runlog_file, 'x')
-        except OSError:
-            pass
-    with open(runlog_file, 'a') as runlog:
-        time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
-        runlog.write('\n===============================\n          Begin Process Run at: ' + time_now + '\n===============================\n')
-        runlog.close()
-
     # Begin main payment checking/recording loop here
     while True:
         """
@@ -1152,9 +1139,6 @@ def tx_processor(DEFAULT_SETTINGS, CUSTOM_SETTINGS):
             STAT = int(RESLIST[5])
             TX_TIME = RESLIST[6]
             TALLY = RESLIST[7]
-
-            print('\n Stat:')
-            print(STAT)
 
             # Archive internal TXs and continue
             if STAT == 2:
@@ -1853,6 +1837,17 @@ if __name__ == "__main__":
 
     # Start main thread
     if running == True:
+        runlog_file = PROFILELOG + 'run.log'
+        is_runlog_file = os.path.isfile(runlog_file)
+        if not is_runlog_file:
+            try:
+                open(runlog_file, 'x')
+            except OSError:
+                pass
+        with open(runlog_file, 'a') as runlog:
+            time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+            runlog.write('\n===========================================================\n     Starting Main Process: ' + time_now + '\n===========================================================\n')
+            runlog.close()
         print('\nProfile in mem:')
         print(PROFILE)
         print('\nOther non PROFILE specific in mem:')

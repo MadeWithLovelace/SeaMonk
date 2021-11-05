@@ -330,9 +330,9 @@ def log_new_txs(default_settings, custom_settings):
     time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
     # Debug
     #print('\nLogger Running at ' + time_now)
-    with open(runlog_file, 'a') as runlog:
-        runlog.write('\nTX Logger Running at ' + time_now)
-        runlog.close()
+    #with open(runlog_file, 'a') as runlog:
+    #    runlog.write('\nTX Logger Running at ' + time_now)
+    #    runlog.close()
 
     # Setup files
     tx_archive_exist = False
@@ -447,7 +447,7 @@ def process_tally(default_settings, address = 'none', amount = 0):
             readtx_index = 0
             last_tally = 0
             tally = amount
-
+            
             # Iterate over file lines
             for line in pay_r:
                 if readtx_index == 0:
@@ -461,7 +461,8 @@ def process_tally(default_settings, address = 'none', amount = 0):
                 tk_amnt = int(el[3])
                 tk_name = el[4]
                 tx_stat = el[5]
-                tx_tally = int(el[6])
+                tx_time = el[6]
+                tx_tally = int(el[7])
 
                 # Check for matching long addresses
                 check_addr = address
@@ -475,7 +476,7 @@ def process_tally(default_settings, address = 'none', amount = 0):
             
                 # Tally matches
                 if check_addr == check_tx_addr:
-                    last_tally = tx_tally
+                    last_tally += tx_tally
         
         # Add last matching line tally to current amount and return for checking and possible payments log
         tally += last_tally
@@ -502,7 +503,8 @@ def process_tally(default_settings, address = 'none', amount = 0):
                 tk_amnt = int(el[3])
                 tk_name = el[4]
                 tx_stat = el[5]
-                tx_tally = int(el[6])
+                tx_time = el[6]
+                tx_tally = int(el[7])
                 if len(tx_addr) == 103:
                     chck_tx_addr = tx_addr[52:-6]
                 
@@ -580,7 +582,6 @@ def check_for_payment(default_settings, custom_settings):
     compare_addr = True
     compare_amnt = True
     record_as_payment = ''
-    stat = ''
     tally_amnt = 0
     if sender_addr == 'none':
         compare_addr = False
@@ -610,10 +611,12 @@ def check_for_payment(default_settings, custom_settings):
     # Foreach tx_log row compare against each line of payments_log
     txlog_r = open(txlog_file, 'r')
     with open(txlog_file, 'r') as txlog_r:
+        print('\nBeginning loop next')
         readtx_index = 0
         for x in txlog_r:
             if readtx_index == 0:
                 readtx_index += 1
+                print('\nTitle, skipping')
                 continue
             readtx_index += 1
             cells = x.split(',')
@@ -622,10 +625,11 @@ def check_for_payment(default_settings, custom_settings):
             tx_amnt = int(cells[2])
             tk_amnt = int(cells[3])
             tk_name = cells[4]
-            tx_time = cells[5]
+            tx_time = cells[5].strip()
             flag = 0
             readpay_index = 0
             payments_r = open(payments_file, 'r')
+            print('\nGot one: '+tx_hash)
 
             # Foreach line of the file
             for line in payments_r:
@@ -639,11 +643,11 @@ def check_for_payment(default_settings, custom_settings):
             if tx_addr == watch_addr or tx_addr == sc_addr:
                 # Archive internal TX
                 archive_tx(default_settings, [tx_hash, tx_amnt, tx_time])
-                stat = '2'
                 flag = 1
             if flag == 1:
                 continue
             if flag == 0:
+                print('\nnon-self payment...')
                 # Get clear representation of address
                 if len(sender_addr) == 103:
                     sender_addr_compare = sender_addr[52:-6]
@@ -655,40 +659,43 @@ def check_for_payment(default_settings, custom_settings):
                 # Compare addresses
                 if compare_addr:
                     if tx_addr_compare == sender_addr_compare:
+                        print('\nAddresses match')
                         record_as_payment = True
                     else:
+                        print('\nAddresses do NOT match')
                         record_as_payment = False
                 else:
+                    print('\nDo NOT compare addresses')
                     record_as_payment = True
 
                 # Compare values
-                if compare_amnt and record_as_payment:
-                    tally_amnt = tx_amnt
-                    if auction == 0:
-                        tally = process_tally(default_settings, tx_addr, tx_amnt)
-                        if tally > 0:
-                            tally_amnt += tally
-                    if min_watch > 0 and tally_amnt >= min_watch:
-                        record_as_payment = True
-                    elif tally_amnt == amount:
-                        record_as_payment = True
-                    else:
-                        record_as_payment = False
+                if record_as_payment:
+                    print('\nRecord_As_Payment Set to True by previous')
+                    tally_amnt = process_tally(default_settings, tx_addr, tx_amnt)
+                    print('\nGot tally:'+str(tally_amnt))
+                    if compare_amnt:
+                        print('\nCompare amounts is true: min_watch or exact is above 0')
+                        if min_watch > 0 and tally_amnt >= min_watch:
+                            print('\nMin_watch is above 0 and tally_amnt is >= min_watch, set payment to true')
+                            record_as_payment = True
+                        elif tally_amnt == amount:
+                            print('\ntally_amnt == amount (expected amnt), set to true')
+                            record_as_payment = True
+                        else:
+                            print('\nNo amount matching, set to false')
+                            record_as_payment = False
 
                 # Set status based on record payment value
                 if record_as_payment == True:
-                    stat = '1'
+                    record_as_payment = False
+                    txlog_r.close()
+                    payments_r.close()
+                    return tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',1,' + tx_time + ',' + str(tally_amnt)
                 if record_as_payment == False:
-                    stat = '0'
-
-            record_as_payment = False
+                    return tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',0,' + tx_time + ',' + str(tally_amnt)
             payments_r.close()
-    if stat == '2' or stat == '':
-        return_data = ',,0,0,,2,0,0'
-    else:
-        return_data = tx_hash + ',' + tx_addr + ',' + str(tx_amnt) + ',' + str(tk_amnt) + ',' + tk_name + ',' + stat + ',' + tx_time + ',' + str(tally_amnt)
     txlog_r.close()
-    return return_data
+    return ',,0,0,,2,0,0'
 
 def clean_folder(default_settings):
     # Defaults settings
