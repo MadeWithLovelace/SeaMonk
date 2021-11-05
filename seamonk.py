@@ -9,7 +9,6 @@ import time
 from sys import exit, argv
 from os.path import isdir, isfile
 from time import sleep, strftime, gmtime
-#from threading import Thread
 
 def inputp(prompt, text):
     def hook():
@@ -20,15 +19,45 @@ def inputp(prompt, text):
     readline.set_pre_input_hook()
     return result
     
-def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, filePre, tx_in_data, tokens_to_swap = 0, recipient_addr = '', replenish = False):
+def deposit(default_settings, custom_settings):
+    # Default settings
+    log = default_settings[5]
+    cache = default_settings[6]
+
+    # Custom settings
+    api_uri = custom_settings[0]
+    api_id = custom_settings[1]
+    watch_addr = custom_settings[2]
+    fee_token_string = custom_settings[3]
+    filePre = custom_settings[4]
+    tx_hash_in = custom_settings[5]
+    tx_amnt_in = custom_settings[6]
+    tx_time = custom_settings[7]
+    watch_skey_path = custom_settings[8]
+    smartcontract_addr = custom_settings[9]
+    smartcontract_path = custom_settings[10]
+    token_policy_id = custom_settings[11]
+    token_name = custom_settings[12]
+    deposit_amt = custom_settings[13]
+    sc_ada_amt = custom_settings[14]
+    ada_amt = custom_settings[15]
+    datum_hash = custom_settings[16]
+    check_price = custom_settings[17]
+    collateral = custom_settings[18]
+    tokens_to_swap = custom_settings[19]
+    recipient_addr = custom_settings[20]
+    replenish = custom_settings[21]
+
+    submit_settings = [api_uri, api_id, watch_addr, fee_token_string, filePre, tx_hash_in, tx_amnt_in, tx_time]
+
     # Begin log file and clear cache 
     runlog_file = log + 'run.log'
-    tx.clean_folder(profile_name)
-    tx.proto(profile_name)
-    tx.get_utxo(profile_name, watch_addr, 'utxo.json')
+    tx.clean_folder(default_settings)
+    tx.proto(default_settings)
+    tx.get_utxo(default_settings, watch_addr, 'utxo.json')
     
     # Get wallet utxos
-    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(profile_name, 'utxo.json', collateral)
+    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(default_settings, 'utxo.json', collateral)
 
     # Check for price amount + other needed amounts in watched wallet
     if check_price > 0:
@@ -37,7 +66,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         check_price = int(check_price) + int(sc_ada_amt) + int(ada_amt) + int(collateral) + fee_buffer
         if not replenish:
             print('\nCheck Price now: ', check_price)
-        is_price_utxo = tx.get_txin(profile_name, 'utxo.json', collateral, False, '', int(check_price))
+        is_price_utxo = tx.get_txin(default_settings, 'utxo.json', collateral, False, '', int(check_price))
         if not is_price_utxo:
             if not replenish:
                 print("\nNot enough ADA in your wallet to cover Price and Collateral. Add some funds and try again.\n")
@@ -47,32 +76,32 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         filePreCollat = 'collatRefill_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
         if not replenish:
             print("No collateral UTxO found! Attempting to create...")
-        _, until_tip, block = tx.get_tip(profile_name)
+        _, until_tip, block = tx.get_tip(default_settings)
         # Setup UTxOs
-        tx_out = tx.process_tokens(profile_name, tokens, watch_addr, ['all'], ada_amt) # Process all tokens and change
+        tx_out = tx.process_tokens(default_settings, tokens, watch_addr, ['all'], ada_amt) # Process all tokens and change
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Create collateral UTxO
         if not replenish:
             print('\nTX Out Settings for Creating Collateral: ', tx_out)
         tx_data = [
             ''
         ]
-        tx.build_tx(profile_name, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
+        tx.build_tx(default_settings, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
         
         # Sign and submit the transaction
         witnesses = [
             '--signing-key-file',
             watch_skey_path
         ]
-        tx.sign_tx(profile_name, witnesses, filePreCollat)
+        tx.sign_tx(default_settings, [witnesses, filePreCollat])
         if not replenish:
             print('\nSubmitting and waiting for new UTxO to appear on blockchain...')
-        tx_hash_collat = tx.submit_tx(profile_name, filePre, tx_in_data[0], tx_in_data[1], tx_in_data[2])
+        tx_hash_collat = tx.submit_tx(default_settings, submit_settings)
         if not replenish:
             print('\nTX Hash returned: ' + tx_hash_collat)
     
     # Build, sign, and send transaction
     if flag is True:
-        _, until_tip, block = tx.get_tip(profile_name)
+        _, until_tip, block = tx.get_tip(default_settings)
         
         # Calculate token quantity and any change
         tok_bal = 0
@@ -88,25 +117,25 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
             return 'Error: Token Balance in Watched Wallet Too Low For Replenish+Swap'
 
         # Setup UTxOs
-        tx_out = tx.process_tokens(profile_name, tokens, watch_addr, ['all'], ada_amt, [token_policy_id, token_name]) # Account for all except token to swap
+        tx_out = tx.process_tokens(default_settings, tokens, watch_addr, ['all'], ada_amt, [token_policy_id, token_name]) # Account for all except token to swap
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # UTxO to replenish collateral
         if tok_new > 0:
-            tx_out += tx.process_tokens(profile_name, tokens, watch_addr, [tok_new], ada_amt) # Account for deposited-token change (if any)
+            tx_out += tx.process_tokens(default_settings, tokens, watch_addr, [tok_new], ada_amt) # Account for deposited-token change (if any)
         if tokens_to_swap > 0:
-            tx_out += tx.process_tokens(profile_name, tokens, recipient_addr, [tokens_to_swap], ada_amt, [token_policy_id, token_name], False) # UTxO to Send Token(s) to the Buyer
-        tx_out += tx.process_tokens(profile_name, tokens, smartcontract_addr, [sc_out], sc_ada_amt, [token_policy_id, token_name], False) # Send just the token for swap
+            tx_out += tx.process_tokens(default_settings, tokens, recipient_addr, [tokens_to_swap], ada_amt, [token_policy_id, token_name], False) # UTxO to Send Token(s) to the Buyer
+        tx_out += tx.process_tokens(default_settings, tokens, smartcontract_addr, [sc_out], sc_ada_amt, [token_policy_id, token_name], False) # Send just the token for swap
         tx_out += '--tx-out-datum-hash', datum_hash
         tx_data = []
         if replenish:
             if sc_out > tok_bal:
                 sc_out = tok_bal
-            tx.get_utxo(profile_name, smartcontract_addr, 'utxo_script.json')
+            tx.get_utxo(default_settings, smartcontract_addr, 'utxo_script.json')
             if isfile(cache+'utxo_script.json') is False:
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nERROR: Could not file utxo_script.json\n')
                     runlog.close()
                 return False
-            _, _, sc_tokens, _, data_list = tx.get_txin(profile_name, 'utxo_script.json', collateral, True, datum_hash)
+            _, _, sc_tokens, _, data_list = tx.get_txin(default_settings, 'utxo_script.json', collateral, True, datum_hash)
 
             sc_out_tk = 0
             for token in sc_tokens:
@@ -122,7 +151,7 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
                     utxo_in += ['--tx-in', key]
                     break
             tx_out += ['--tx-out', watch_addr + '+' + str(price)] # UTxO for price
-            tx_out += tx.process_tokens(profile_name, sc_tokens, watch_addr, sc_out_tk, sc_ada_amt) # UTxO to Get SC Tokens Out
+            tx_out += tx.process_tokens(default_settings, sc_tokens, watch_addr, sc_out_tk, sc_ada_amt) # UTxO to Get SC Tokens Out
             tx_data = [
                 '--tx-out-datum-hash', datum_hash,
                 '--tx-in-datum-value', '"{}"'.format(tx.get_token_identifier(token_policy_id, token_name)),
@@ -130,15 +159,15 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
                 '--tx-in-script-file', smartcontract_path
             ]
 
-        tx.build_tx(profile_name, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
+        tx.build_tx(default_settings, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
         
         # Sign and submit the transaction
         witnesses = [
             '--signing-key-file',
             watch_skey_path
         ]
-        tx.sign_tx(profile_name, witnesses, filePre)
-        tx_hash = tx.submit_tx(profile_name, filePre, tx_in_data[0], tx_in_data[1], tx_in_data[2])
+        tx.sign_tx(default_settings, [witnesses, filePre])
+        tx_hash = tx.submit_tx(default_settings, submit_settings)
     else:
         if not replenish:
             print('\nCollateral UTxO missing or couldn\'t be created! Exiting...\n')
@@ -146,27 +175,58 @@ def deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract
         tx_hash = 'error'
     return tx_hash
 
-def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, return_ada, price, collateral, filePre, tx_in_data, refund_amnt = 0, refund_type = 0, magic_price = 0):
+def withdraw(default_settings, custom_settings):
+    # Defaults settings
+    log = default_settings[5]
+    cache = default_settings[6]
+
+    # Custom settings
+    api_uri = custom_settings[0]
+    api_id = custom_settings[1]
+    watch_addr = custom_settings[2]
+    fee_token_string = custom_settings[3]
+    filePre = custom_settings[4]
+    tx_hash_in = custom_settings[5]
+    tx_amnt_in = custom_settings[6]
+    tx_time = custom_settings[7]
+    watch_skey_path = custom_settings[8]
+    smartcontract_addr = custom_settings[9]
+    smartcontract_path = custom_settings[10]
+    token_policy_id = custom_settings[11]
+    token_name = custom_settings[12]
+    datum_hash = custom_settings[13]
+    recipient_addr = custom_settings[14]
+    return_ada = custom_settings[15]
+    price = custom_settings[16]
+    collateral = custom_settings[17]
+    refund_amnt = custom_settings[18]
+    refund_type = custom_settings[19]
+    magic_price = custom_settings[20]
+
+    submit_settings = [api_uri, api_id, watch_addr, fee_token_string, filePre, tx_hash_in, tx_amnt_in, tx_time]
+
+
     # Begin log file
     runlog_file = log + 'run.log'
 
     # Clear the cache
-    tx.clean_folder(profile_name)
-    tx.proto(profile_name)
-    tx.get_utxo(profile_name, watch_addr, 'utxo.json')
+    tx.clean_folder(default_settings)
+    tx.proto(default_settings)
+    tx.get_utxo(default_settings, watch_addr, 'utxo.json')
 
     # Run get_txin
-    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(profile_name, 'utxo.json', collateral)
+    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(default_settings, 'utxo.json', collateral)
     flag = True
     # Build, Sign, and Send TX
-    if flag is True:
-        _, until_tip, block = tx.get_tip(profile_name)
+    if flag is True or collateral == 1:
+        _, until_tip, block = tx.get_tip(default_settings)
         
         token_amnt = ['all']
         if refund_amnt > 0:
             refund_string = recipient_addr + '+' + str(refund_amnt)
             # Check for refund type: 0 = just a simple refund; 1 = include 40 JUDE & any clue; 2 = include any clue
             ct = 0
+            
             if refund_type == 1:
                 ct = 40
                 # Calculate any clue
@@ -192,22 +252,35 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                         ct = 10
                 clue_token = str(ct)
                 refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
+            if refund_type == 3:
+                ct = 40
+                if magic_price == 0:
+                    ct = 41
+                clue_token = str(ct)
+                refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
+            if refund_type == 4:
+                if magic_price == 0:
+                    ct = 1
+                clue_token = str(ct)
+                refund_string += '+' + clue_token + ' ' + token_policy_id + '.' + token_name
+
             if ct > 0:
                 token_amnt = ['except', ct]
             tx_out_refund = ['--tx-out', refund_string] # UTxO to Refund
-        tx_out = tx.process_tokens(profile_name, tokens, watch_addr, token_amnt) # Change
-        tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Replenish collateral
+        tx_out = tx.process_tokens(default_settings, tokens, watch_addr, token_amnt) # Change
+        if collateral != 1:
+            tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Replenish collateral
         if tx_out_refund:
             tx_out += tx_out_refund # The final refund out if any
         tx_data = []
         if refund_amnt == 0:
-            tx.get_utxo(profile_name, smartcontract_addr, 'utxo_script.json')
+            tx.get_utxo(default_settings, smartcontract_addr, 'utxo_script.json')
             if isfile(cache+'utxo_script.json') is False:
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\nERROR: Could not file utxo_script.json\n')
                     runlog.close()
                 return False
-            _, _, sc_tokens, _, data_list = tx.get_txin(profile_name, 'utxo_script.json', collateral, True, datum_hash)
+            _, _, sc_tokens, _, data_list = tx.get_txin(default_settings, 'utxo_script.json', collateral, True, datum_hash)
 
             sc_out = 0
             for token in sc_tokens:
@@ -222,21 +295,21 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
                     utxo_in += ['--tx-in', key]
                     break
             tx_out += ['--tx-out', watch_addr + '+' + str(price)] # UTxO for price if set to process price payment
-            tx_out += tx.process_tokens(profile_name, sc_tokens, watch_addr, sc_out, return_ada) # UTxO to Get SC Tokens Out
+            tx_out += tx.process_tokens(default_settings, sc_tokens, watch_addr, sc_out, return_ada) # UTxO to Get SC Tokens Out
             tx_data = [
                 '--tx-out-datum-hash', datum_hash,
                 '--tx-in-datum-value', '"{}"'.format(tx.get_token_identifier(token_policy_id, token_name)),
                 '--tx-in-redeemer-value', '""',
                 '--tx-in-script-file', smartcontract_path
             ]
-        tx.build_tx(profile_name, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
+        tx.build_tx(default_settings, watch_addr, until_tip, utxo_in, utxo_col, tx_out, tx_data)
         
         witnesses = [
             '--signing-key-file',
             watch_skey_path
         ]
-        tx.sign_tx(profile_name, witnesses, filePre)
-        tx_hash = tx.submit_tx(profile_name, filePre, tx_in_data[0], tx_in_data[1], tx_in_data[2])
+        tx.sign_tx(default_settings, [witnesses, filePre])
+        tx_hash = tx.submit_tx(default_settings, submit_settings)
     else:
         with open(runlog_file, 'a') as runlog:
             runlog.write('\nNo collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.\n')
@@ -244,34 +317,61 @@ def withdraw(profile_name, log, cache, watch_addr, watch_skey_path, smartcontrac
         tx_hash = 'error'
     return tx_hash
 
-def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, datum_hash, recipient_addr, token_qty, return_ada, price, collateral, filePre, tx_in_data):
+def smartcontractswap(default_settings, custom_settings):
+    # Defaults settings
+    log = default_settings[5]
+    cache = default_settings[6]
+
+    # Custom settings
+    api_uri = custom_settings[0]
+    api_id = custom_settings[1]
+    watch_addr = custom_settings[2]
+    fee_token_string = custom_settings[3]
+    filePre = custom_settings[4]
+    tx_hash_in = custom_settings[5]
+    tx_amnt_in = custom_settings[6]
+    tx_time = custom_settings[7]
+    watch_skey_path = custom_settings[8]
+    smartcontract_addr = custom_settings[9]
+    smartcontract_path = custom_settings[10]
+    token_policy_id = custom_settings[11]
+    token_name = custom_settings[12]
+    datum_hash = custom_settings[13]
+    recipient_addr = custom_settings[14]
+    return_ada = custom_settings[15]
+    price = custom_settings[16]
+    collateral = custom_settings[17]
+    token_qty = custom_settings[18]
+
+    submit_settings = [api_uri, api_id, watch_addr, fee_token_string, filePre, tx_hash_in, tx_amnt_in, tx_time]
+
     # Begin log file
     runlog_file = log + 'run.log'
 
     # Clear the cache
-    tx.clean_folder(profile_name)
-    tx.proto(profile_name)
-    tx.get_utxo(profile_name, watch_addr, 'utxo.json')
+    tx.clean_folder(default_settings)
+    tx.proto(default_settings)
+    tx.get_utxo(default_settings, watch_addr, 'utxo.json')
     
     # Run get_txin
-    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(profile_name, 'utxo.json', collateral)
+    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(default_settings, 'utxo.json', collateral)
     
     # Build, Sign, and Send TX
     if flag is True:
-        tx.get_utxo(profile_name, smartcontract_addr, 'utxo_script.json')
+        tx.get_utxo(default_settings, smartcontract_addr, 'utxo_script.json')
         if isfile(cache+'utxo_script.json') is False:
             with open(runlog_file, 'a') as runlog:
                 runlog.write('\nERROR: Could not file utxo_script.json\n')
                 runlog.close()
             return False
-        _, _, sc_tokens, _, data_list = tx.get_txin(profile_name, 'utxo_script.json', collateral, True, datum_hash)
+        _, _, sc_tokens, _, data_list = tx.get_txin(default_settings, 'utxo_script.json', collateral, True, datum_hash)
         contract_utxo_in = utxo_in
         for key in data_list:
             # A single UTXO with a single datum can be spent
             if data_list[key] == datum_hash:
                 contract_utxo_in += ['--tx-in', key]
                 break
-        _, until_tip, block = tx.get_tip(profile_name)
+        _, until_tip, block = tx.get_tip(default_settings)
         # Calculate token quantity and change
         sc_bal = 0
         sc_out = int(token_qty)
@@ -283,27 +383,27 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
             for t_qty in sc_tokens[token]:
                 sc_bal = sc_tokens[token][t_qty]
                 sc_new = sc_bal - sc_out
-        tx_out = tx.process_tokens(profile_name, sc_tokens, recipient_addr, [sc_out], return_ada) # UTxO to Send Token(s) to the Buyer
-        tx_out += tx.process_tokens(profile_name, tokens, watch_addr) # Change
+        tx_out = tx.process_tokens(default_settings, sc_tokens, recipient_addr, [sc_out], return_ada) # UTxO to Send Token(s) to the Buyer
+        tx_out += tx.process_tokens(default_settings, tokens, watch_addr) # Change
         tx_out += ['--tx-out', watch_addr + '+' + str(collateral)] # Replenish collateral
         if price:
             tx_out += ['--tx-out', watch_addr + '+' + str(price)] # UTxO for price if set to process price payment
         if sc_new > 0:
-            tx_out += tx.process_tokens(profile_name, sc_tokens, smartcontract_addr, [sc_new]) # UTxO to Send Change to Script - MUST BE LAST UTXO FOR DATUM
+            tx_out += tx.process_tokens(default_settings, sc_tokens, smartcontract_addr, [sc_new]) # UTxO to Send Change to Script - MUST BE LAST UTXO FOR DATUM
         tx_data = [
             '--tx-out-datum-hash', datum_hash,
             '--tx-in-datum-value', '"{}"'.format(tx.get_token_identifier(token_policy_id, token_name)),
             '--tx-in-redeemer-value', '""',
             '--tx-in-script-file', smartcontract_path
         ]
-        tx.build_tx(profile_name, watch_addr, until_tip, contract_utxo_in, utxo_col, tx_out, tx_data)
+        tx.build_tx(default_settings, watch_addr, until_tip, contract_utxo_in, utxo_col, tx_out, tx_data)
         
         witnesses = [
             '--signing-key-file',
             watch_skey_path
         ]
-        tx.sign_tx(profile_name, witnesses, filePre)
-        tx_hash = tx.submit_tx(profile_name, filePre, tx_in_data[0], tx_in_data[1], tx_in_data[2])
+        tx.sign_tx(default_settings, [witnesses, filePre])
+        tx_hash = tx.submit_tx(default_settings, submit_settings)
     else:
         with open(runlog_file, 'a') as runlog:
             runlog.write('\nNo collateral UTxO found! Please create a UTxO of 2 ADA (2000000 lovelace) before trying again.\n')
@@ -311,7 +411,32 @@ def smartcontractswap(profile_name, log, cache, watch_addr, watch_skey_path, sma
         tx_hash = 'error'
     return tx_hash
 
-def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey_path, nft_addr, return_ada, nft_data, filePre, tx_in_data, manual = False):
+def mint(default_settings, custom_settings):
+    # Defaults settings
+    log = default_settings[5]
+    cache = default_settings[6]
+
+    # Custom settings
+    api_uri = custom_settings[0]
+    api_id = custom_settings[1]
+    watch_addr = custom_settings[2]
+    fee_token_string = custom_settings[3]
+    filePre = custom_settings[4]
+    tx_hash_in = custom_settings[5]
+    tx_amnt_in = custom_settings[6]
+    tx_time = custom_settings[7]
+    return_ada = custom_settings[8]
+    src = custom_settings[9]
+    mint_addr = custom_settings[10]
+    wallet_skey_path = custom_settings[11]
+    policy_skey_path = custom_settings[12]
+    nft_addr = custom_settings[13]
+    nft_data = custom_settings[14]
+    manual = custom_settings[15]                                      #= False
+
+
+    submit_settings = [api_uri, api_id, watch_addr, fee_token_string, filePre, tx_hash_in, tx_amnt_in, tx_time]
+
     # Assign vars from list
     nft_name = nft_data[0]
     nft_qty = nft_data[1]
@@ -324,9 +449,9 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
     runlog_file = log + 'run.log'
 
     # Clear the cache
-    tx.clean_folder(profile_name)
-    tx.proto(profile_name)
-    tx.get_utxo(profile_name, mint_addr, 'utxo.json')
+    tx.clean_folder(default_settings)
+    tx.proto(default_settings)
+    tx.get_utxo(default_settings, mint_addr, 'utxo.json')
 
     # Get locking tip
     if nft_add < 900 and nft_lock == 0:
@@ -338,7 +463,7 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
             exit(0)
     if nft_lock > 0:
         until_tip = nft_lock
-        latest_tip, _, _ = tx.get_tip(profile_name, 0, until_tip)
+        latest_tip, _, _ = tx.get_tip(default_settings, 0, until_tip)
         tip_diff = until_tip - latest_tip
         if tip_diff < 600 and tip_diff > 120:
             if manual:
@@ -363,7 +488,7 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
                     runlog.write('\nTarget locking height is less than 2 min in the future, trying anyway...')
                     runlog.close()
     else:
-        _, until_tip, _ = tx.get_tip(profile_name, nft_add)
+        _, until_tip, _ = tx.get_tip(default_settings, nft_add)
 
     # Setup NFT files
     template_script = src + 'template.script'
@@ -382,7 +507,7 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
         scriptout.close()
 
     # Generate and output Policy ID
-    nft_id = tx.get_token_id(profile_name, out_script)
+    nft_id = tx.get_token_id(default_settings, out_script)
     with open(out_id, 'w') as outid:
         outid.write(nft_id)
         outid.close()
@@ -414,10 +539,10 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
         jsonout.close()
     
     # Run get_txin
-    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(profile_name, 'utxo.json')
+    utxo_in, utxo_col, tokens, flag, _ = tx.get_txin(default_settings, 'utxo.json')
     
     # Build Raw Temp
-    tx_out_own = tx.process_tokens(profile_name, tokens, mint_addr, ['all'], return_ada, '', True, True, return_ada) # ADA Calc Change
+    tx_out_own = tx.process_tokens(default_settings, tokens, mint_addr, ['all'], return_ada, '', True, True, return_ada) # ADA Calc Change
     tx_out_nft = ['--tx-out', nft_addr + '+' + return_ada + '+' + nft_qty + ' ' + nft_asset] # Send NFT to winner
 
     tx_out_temp = tx_out_own
@@ -439,27 +564,49 @@ def mint(profile_name, src, log, cache, mint_addr, wallet_skey_path, policy_skey
     counts = [utxo_in_count, utxo_out_count, witness_count]
 
     # Get fee and recalculate UTxOs
-    fee = tx.build_raw_tx(profile_name, counts, until_tip, utxo_in, utxo_col, tx_out_temp, tx_data, manual)
+    fee = tx.build_raw_tx(default_settings, counts, until_tip, utxo_in, utxo_col, tx_out_temp, tx_data, manual)
     reserve_ada = int(return_ada) + int(fee)
-    tx_out_own_new = tx.process_tokens(profile_name, tokens, mint_addr, ['all'], return_ada, '', True, True, reserve_ada) # ADA Calc Change
+    tx_out_own_new = tx.process_tokens(default_settings, tokens, mint_addr, ['all'], return_ada, '', True, True, reserve_ada) # ADA Calc Change
     tx_out = tx_out_own_new
     tx_out += tx_out_nft
 
     # Build new tx with fees
-    tx.build_raw_tx(profile_name, counts, until_tip, utxo_in, utxo_col, tx_out, tx_data, manual, fee)
+    tx.build_raw_tx(default_settings, counts, until_tip, utxo_in, utxo_col, tx_out, tx_data, manual, fee)
     
     # Sign and send
-    tx.sign_tx(profile_name, witnesses, filePre)
-    tx_hash = tx.submit_tx(profile_name, filePre, tx_in_data[0], tx_in_data[1], tx_in_data[2])
+    tx.sign_tx(default_settings, [witnesses, filePre])
+    tx_hash = tx.submit_tx(default_settings, submit_settings)
     if manual:
         return tx_hash, nft_id, str(until_tip)
     return tx_hash
 
-def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path, watch_vkey_path, watch_key_hash, smartcontract_path, token_policy_id, token_name, check_price, collateral):
+def start_deposit(default_settings, custom_settings):
+    # Default settings
+    log = default_settings[5]
+    cache = default_settings[6]
+
+    # Custom settings
+    api_uri = custom_settings[0]
+    api_id = custom_settings[1]
+    watch_addr = custom_settings[2]
+    fee_token_string = custom_settings[3]
+    filePre = custom_settings[4]
+    tx_hash_in = custom_settings[5]
+    tx_amnt_in = custom_settings[6]
+    tx_time = custom_settings[7]
+    watch_skey_path = custom_settings[8]
+    watch_vkey_path = custom_settings[9]
+    watch_key_hash = custom_settings[10]
+    smartcontract_path = custom_settings[11]
+    token_policy_id = custom_settings[12]
+    token_name = custom_settings[13]
+    check_price = custom_settings[14]
+    collateral = custom_settings[15]
+
     # Begin log file
     runlog_file = log + 'run.log'
 
-    smartcontract_addr = tx.get_smartcontract_addr(profile_name, smartcontract_path)
+    smartcontract_addr = tx.get_smartcontract_addr(default_settings, smartcontract_path)
 
     print("\n--- NOTE: Proceed Only If You Are Depositing Your NFT or Tokens Into the NFT/Token Swap Smart Contract ---\n")
     print("\n---       Be sure you have at least 1 UTxO in your wallet with 2 ADA for collateral before running this.   ---\n")
@@ -484,14 +631,13 @@ def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path,
     sc_ada_amt = input("\nHow many lovelace to include with token(s) at SmartContract UTxO? (must be at least protocol minimum for token(s))\nLovelace Amount SmartContract:")
     ada_amt = input("\nHow many lovelace to include with token(s) at watched address UTxO(s)? (must be at least protocol minimum for token(s))\nLovelace Amount Wallet:")
 
-    # Calculate the "fingerprint"
-    FINGERPRINT = tx.get_token_identifier(token_policy_id, token_name) # Not real fingerprint but works
-    DATUM_HASH  = tx.get_hash_value(profile_name, '"{}"'.format(FINGERPRINT)).replace('\n', '')
-    #print('Datum Hash: ', DATUM_HASH)
+    unique_id = tx.get_token_identifier(token_policy_id, token_name)
+    datum_hash  = tx.get_hash_value(default_settings, '"{}"'.format(unique_id)).replace('\n', '')
     filePre = 'depositSC_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-    tx_hash = deposit(profile_name, log, cache, watch_addr, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, DATUM_HASH, check_price, collateral, filePre, ['none','',''])
+    deposit_settings = [api_uri, api_id, watch_addr, fee_token_string, filePre, tx_hash_in, tx_amnt_in, tx_time, watch_skey_path, smartcontract_addr, smartcontract_path, token_policy_id, token_name, deposit_amt, sc_ada_amt, ada_amt, datum_hash, check_price, collateral, 0, '', False]
+    tx_hash = deposit(default_settings, deposit_settings)
     print('\nDeposit is processing . . . ')
-    tx.log_new_txs(profile_name, api_id, watch_addr)
+    tx.log_new_txs(default_settings, [api_uri, api_id, watch_addr, ''])
     sleep(2)
     if tx_hash != 'error':
         with open(runlog_file, 'a') as runlog:
@@ -504,44 +650,26 @@ def start_deposit(profile_name, api_id, log, cache, watch_addr, watch_skey_path,
             runlog.close()
         print('\nDeposit Failed!')
 
-def create_smartcontract(profile_name, approot, sc_path, src, pubkeyhash, price):
-    # Load settings to modify
-    settings_file = approot + 'profile.json'
-    # Load settings
-    load_profile = json.load(open(settings_file, 'r'))
-    if len(profile_name) == 0:
-        profile_name = list(load_profile.keys())[0]
-    PROFILE = load_profile[profile_name]
-    LOG = PROFILE['log']
-    CACHE = PROFILE['cache']
-    TXLOG = PROFILE['txlog']
-    NETWORK = PROFILE['network']
-    MAGIC = PROFILE['magic']
-    CLI_PATH = PROFILE['cli_path']
-    API_URI = PROFILE['api_uri']
-    API_ID = PROFILE['api']
-    WATCH_ADDR = PROFILE['watchaddr']
-    COLLATERAL = PROFILE['collateral']
-    WLENABLED = PROFILE['wlenabled']
-    WHITELIST_ONCE = PROFILE['wlone']
-    WATCH_SKEY_PATH = PROFILE['watchskey']
-    WATCH_VKEY_PATH = PROFILE['watchvkey']
-    WATCH_KEY_HASH = PROFILE['watchkeyhash']
-    SMARTCONTRACT_PATH = PROFILE['scpath']
-    TOKEN_POLICY_ID = PROFILE['tokenid']
-    TOKEN_NAME = PROFILE['tokenname']
-    EXPECT_ADA = PROFILE['expectada']
-    MIN_WATCH = PROFILE['min_watch']
-    PRICE = PROFILE['price']
-    TOKEN_QTY = PROFILE['tokenqty']
-    RETURN_ADA = PROFILE['returnada']
-    DEPOSIT_AMNT = PROFILE['deposit_amnt']
-    RECURRING = PROFILE['recurring']
-    SC_ADA_AMNT = PROFILE['sc_ada_amnt']
-    WT_ADA_AMNT = PROFILE['wt_ada_amnt']
-    AUTO_REFUND = PROFILE['auto_refund']
-    FEE_CHARGE = PROFILE['fee_to_charge']
+def create_smartcontract(default_settings, custom_settings):
+    # Default settings
+    log = default_settings[5]
+    cache = default_settings[6]
 
+    # Custom settings
+    api_uri = custom_settings[0]
+    api_id = custom_settings[1]
+    watch_addr = custom_settings[2]
+    fee_token_string = custom_settings[3]
+    filePre = custom_settings[4]
+    tx_hash_in = custom_settings[5]
+    tx_amnt_in = custom_settings[6]
+    tx_time = custom_settings[7]
+    approot = custom_settings[8]
+    sc_path = custom_settings[9]
+    src = custom_settings[10]
+    pubkeyhash = custom_settings[11]
+    price = custom_settings[12]
+    
     # Replace the validator options
     template_src = src + 'src/' + 'template_SwapToken.hs'
     output_src = src + 'src/' + 'SwapToken.hs'
@@ -567,55 +695,18 @@ def create_smartcontract(profile_name, approot, sc_path, src, pubkeyhash, price)
     # Move the plutus file to the working directory
     os.remove(output_src)
     os.replace(src + 'swaptoken.plutus', sc_path)
-    SC_ADDR = tx.get_smartcontract_addr(profile_name, sc_path)
+    SC_ADDR = tx.get_smartcontract_addr(default_settings, sc_path)
 
-    # Save to dictionary
-    rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
-
-    # Save/Update whitelist and profile.json files
-    reconfig_profile = json.load(open(settings_file, 'r'))
-    reconfig_profile[profile_name] = rawSettings
-    jsonSettings = json.dumps(reconfig_profile)
-    with open(settings_file, 'w') as s_file:
-        s_file.write(jsonSettings)
-        s_file.close()
-
-    print('\n================ Finished! ================\n > Your SmartContract Address For Your Records Is: ' + SC_ADDR + '\n\n')
+    print('\n================ Finished! ================\n > This SmartContract Address For Your Records Is (if testnet it will be different when you go mainnet): ' + SC_ADDR + '\n\n')
     exit(0)
 
-def setup(logroot, profile_name='', reconfig=False, append=False):
-    PROFILE_TYPE = ''
-    NETWORK_INPUT = ''
-    MAGIC_INPUT = ''
-    CLI_PATH_INPUT = ''
-    API_ID_INPUT = ''
-    WATCH_ADDR_INPUT = ''
-    COLLATERAL_INPUT = ''
-    WLENABLED_INPUT = ''
-    WHITELIST_ONCE_INPUT = ''
-    WATCH_SKEY_PATH_INPUT = ''
-    WATCH_VKEY_PATH_INPUT = ''
-    WATCH_KEY_HASH_INPUT = ''
-    SMARTCONTRACT_PATH_INPUT = ''
-    SC_ADDR = ''
-    TOKEN_POLICY_ID_INPUT = ''
-    TOKEN_NAME_INPUT = ''
-    EXPECT_ADA_INPUT = ''
-    MIN_WATCH_INPUT = ''
-    PRICE_INPUT = ''
-    TOKEN_QTY_INPUT = ''
-    RETURN_ADA_INPUT = ''
-    DEPOSIT_AMNT_INPUT = ''
-    RECURRINGSTRING_INPUT = ''
-    SC_ADA_AMNT_INPUT = ''
-    WT_ADA_AMNT_INPUT = ''
-    AUTO_REFUND_INPUT = ''
-    FEE_CHARGE_INPUT = ''
-    NFT_MINTED = False
+def setup(logroot, profile_name='', reconfig = False, append = False):
+    # Default and shared variables
+    PROFILE_TYPE, NETWORK_INPUT, MAGIC_INPUT, CLI_PATH_INPUT, API_ID_INPUT, COLLATERAL_INPUT, WLENABLED_INPUT, WHITELIST_ONCE_INPUT, WATCH_SKEY_PATH_INPUT, WATCH_VKEY_PATH_INPUT, SMARTCONTRACT_PATH_INPUT, TOKEN_POLICY_ID_INPUT, TOKEN_NAME_INPUT, EXPECT_ADA_INPUT, MIN_WATCH_INPUT, PRICE_INPUT, TOKEN_QTY_INPUT, RETURN_ADA_INPUT, DEPOSIT_AMNT_INPUT, RECURRINGSTRING_INPUT, SC_ADA_AMNT_INPUT, WT_ADA_AMNT_INPUT, AUTO_REFUND_INPUT, FEE_CHARGE_INPUT, AUCTIONINPUT, MINT_SKEY, MINT_VKEY, MINT_POLICY_SKEY, MINT_POLICY_VKEY, MINT_NFT_NAME, MINT_NFT_QTY, MINT_TARGET_TIP, MINT_LAST_TIP, BLOCKTIMEINPUT, NFT_ADDR = '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
 
-    # For minting only
-    MINT_TARGET_TIP = '0'
-    MINT_LAST_TIP = '0'
+    # Minting Defaults
+    AUCTIONEND = 0
+    NFT_MINTED = False
 
     if reconfig:
         settings_file = 'profile.json'
@@ -625,41 +716,45 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
             profile_name = list(load_profile.keys())[0]
         PROFILE = load_profile[profile_name]
         PROFILE_TYPE = int(PROFILE['type'])
-        ### LOG
-        ### CACHE
-        ### TXLOG
-        NETWORK_INPUT = PROFILE['network']
-        if NETWORK_INPUT == 'testnet-magic':
-            NETWORK_INPUT = 'testnet'
-        MAGIC_INPUT = PROFILE['magic']
         CLI_PATH_INPUT = PROFILE['cli_path']
-        ### API_URI
         API_ID_INPUT = PROFILE['api']
-        WATCH_ADDR_INPUT = PROFILE['watchaddr']
         COLLATERAL_INPUT = PROFILE['collateral']
-        WLENABLED_INPUT = PROFILE['wlenabled']
-        WHITELIST_ONCE_INPUT = PROFILE['wlone']
-        WATCH_SKEY_PATH_INPUT = PROFILE['watchskey']
-        WATCH_VKEY_PATH_INPUT = PROFILE['watchvkey']
-        WATCH_KEY_HASH_INPUT = PROFILE['watchkeyhash']
-        SMARTCONTRACT_PATH_INPUT = PROFILE['scpath']
-        SC_ADDR = PROFILE['scaddr']
         TOKEN_POLICY_ID_INPUT = PROFILE['tokenid']
         TOKEN_NAME_INPUT = PROFILE['tokenname']
         EXPECT_ADA_INPUT = PROFILE['expectada']
         MIN_WATCH_INPUT = PROFILE['min_watch']
-        PRICE_INPUT = PROFILE['price']
-        TOKEN_QTY_INPUT = PROFILE['tokenqty']
+        WLENABLED_INPUT = PROFILE['wlenabled']
+        WHITELIST_ONCE_INPUT = PROFILE['wlone']
         RETURN_ADA_INPUT = PROFILE['returnada']
-        DEPOSIT_AMNT_INPUT = PROFILE['deposit_amnt']
-        RECURRINGSTRING_INPUT = PROFILE['recurring']
-        SC_ADA_AMNT_INPUT = PROFILE['sc_ada_amnt']
-        WT_ADA_AMNT_INPUT = PROFILE['wt_ada_amnt']
-        AUTO_REFUND_INPUT = PROFILE['auto_refund']
-        FEE_CHARGE_INPUT = PROFILE['fee_to_charge']
+
+        if PROFILE_TYPE == 0:
+            WATCH_SKEY_PATH_INPUT = PROFILE['watchskey']
+            WATCH_VKEY_PATH_INPUT = PROFILE['watchvkey']
+            SMARTCONTRACT_PATH_INPUT = PROFILE['scpath']
+            PRICE_INPUT = PROFILE['price']
+            TOKEN_QTY_INPUT = PROFILE['tokenqty']
+            DEPOSIT_AMNT_INPUT = PROFILE['deposit_amnt']
+            RECURRINGSTRING_INPUT = PROFILE['recurring']
+            SC_ADA_AMNT_INPUT = PROFILE['sc_ada_amnt']
+            WT_ADA_AMNT_INPUT = PROFILE['wt_ada_amnt']
+            AUTO_REFUND_INPUT = PROFILE['auto_refund']
+            FEE_CHARGE_INPUT = PROFILE['fee_to_charge']
 
         if PROFILE_TYPE == 1:
             NFT_MINTED = PROFILE['nft_minted']
+            MINT_SKEY = PROFILE['wallet_skey']
+            MINT_VKEY = PROFILE['wallet_vkey']
+            MINT_POLICY_SKEY = PROFILE['policy_skey']
+            MINT_POLICY_VKEY = PROFILE['policy_vkey']
+            NFT_ADDR = PROFILE['nft_addr']
+            NFT_DATA = PROFILE['nft_data']
+            MINT_NFT_NAME = NFT_DATA[0]
+            MINT_NFT_QTY = NFT_DATA[1]
+            MINT_NFT_JSON = NFT_DATA[2]
+            MINT_TARGET_TIP = NFT_DATA[3]
+            MINT_LAST_TIP = NFT_DATA[4]
+            AUCTIONINPUT = PROFILE['auction']
+            BLOCKTIMEINPUT = PROFILE['blocktime']
         
         UNIQUE_NAME = profile_name
         print('\n!!! WARNING !!!\nSettings for profile "' + profile_name + '" are about to be overwritten!\n\nExit now if you do not want to do that.\n\n')
@@ -684,7 +779,13 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     print('e.g. profiles/MyProfileName/whitelist.txt. Please add the Cardano addresses')
     print('you would like whitelisted to this file, each on a new line. Note that only')
     print('1 address from each whitelisted wallet with a complex 103-length address')
-    print('need be added and the entire wallet will be whitelisted.\n')
+    print('need be added and the entire wallet will be whitelisted.\n\n')
+    print('Default for all profiles is mainnet, if you want to test a profile first')
+    print('you can add the option with various optional values:')
+    print('     `--testnet MAGICNUM APIID TARGETSLOT TOKENPOLICY.TOKENNAME`')
+    print('where MAGICNUM is the testnet magic number, APIID is your testnet-specific')
+    print('Blockfrost API ID, TARGETSLOT is an optional block slot height override,')
+    print('and TOKENPOLICY.TOKENNAME is an override for an alt token if you set one.')
 
     # Setup profile-specific cache and log folders
     log = os.path.join(os.path.join(logroot, UNIQUE_NAME), '')
@@ -703,25 +804,20 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     except OSError:
         pass                
 
-    NETWORKINPUT = inputp('\nNetwork Type (enter either mainnet or testnet)\n >Network Type:', NETWORK_INPUT)
-    if NETWORKINPUT == 'testnet':
-        MAGICINPUT = inputp(' >Testnet Magic:', MAGIC_INPUT)
     CLI_PATH = inputp('\nExplicit Path To "cardano-cli"\n(leave empty if cardano-cli is in your system path and\nit is the version you want to use with this profile)\n >Cardano-CLI Path:', CLI_PATH_INPUT)
-    API_ID = inputp('\nYour Blockfrost API ID\n(should match the network-specific ID i.e. mainnet vs testnet)\n >Blockfrost API ID:', API_ID_INPUT)
+    API_ID = inputp('\nYour Blockfrost Mainnet API ID\n(should match the network-specific ID for mainnet - you can override with your testnet ID when testing)\n >Blockfrost Mainnet API ID:', API_ID_INPUT)
     WLENABLEDSTRING = inputp('\nUse a whitelist?\n(if false, any payment received to the watched address will be checked for matching amount params)\n >Enter True or False:', str(WLENABLED_INPUT))
     WLONESTRING = 'False'
-    if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
-        WLONESTRING = inputp('\nRemove A Sender Address From Whitelist After 1 Payment is Received?\n >Enter True or False:', str(WHITELIST_ONCE_INPUT))
+    if PROFILE_TYPE == 0:
+        if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
+            WLONESTRING = inputp('\nRemove A Sender Address From Whitelist After 1 Payment is Received?\n >Enter True or False:', str(WHITELIST_ONCE_INPUT))
 
     # Process these inputs
     if len(CLI_PATH) == 0:
         CLI_PATH = 'cardano-cli'
     NETWORK = 'mainnet'
-    MAGIC = ''
-    if NETWORKINPUT == 'testnet':
-        NETWORK = 'testnet-magic'
-        MAGIC = MAGICINPUT
-    API_URI = 'https://cardano-' + NETWORKINPUT + '.blockfrost.io/api/v0/'
+    API_URI_PRE = 'https://cardano-'
+    API_URI_POST = '.blockfrost.io/api/v0/'
     WLENABLED = False
     WHITELIST_ONCE = False
     if WLENABLEDSTRING == 'True' or WLENABLEDSTRING == 'true':
@@ -730,7 +826,6 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WHITELIST_ONCE = True
 
     if PROFILE_TYPE == 0:
-        WATCH_ADDR = inputp('\nWallet Address To Watch For Transactions/Payments\n(this is the address you provide to users or customers)\n >Watch Address:', WATCH_ADDR_INPUT)
         WATCH_SKEY_PATH = inputp('\nSigning Key File Path Of Watch Address\n(e.g. /home/user/node/wallets/watch.skey)\n >Watch Address .skey File Path:', WATCH_SKEY_PATH_INPUT)
         WATCH_VKEY_PATH = inputp('\nVerification Key File Path Of Watch Address\n(e.g. /home/user/node/wallet/watch.vkey)\n >Watch Address .vkey File Path:', WATCH_VKEY_PATH_INPUT)
         SMARTCONTRACT_PATH = inputp('\nSmart Contract Plutus File Path\n(path to the ".plutus" file - leave blank if you will be using the built-in simple token swap contract)\n >Smart Contract File Path:', SMARTCONTRACT_PATH_INPUT)
@@ -755,11 +850,8 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         WT_ADA_AMNT = inputp('\nAmount Of Lovelace To Be At UTxO Of Token Change At Watched Wallet\n(cannot be lower than protocol, 2 ADA is recommended for most cases)\n >Amount in Lovelace:', WT_ADA_AMNT_INPUT)
         AUTO_REFUNDSTRING = inputp('\nAutomatically Refund Payments Too Large?\n(type True or False - this will enable auto-refunds for payments which exceed the tokens ever available for swap by the SmartContract)\n >Refunds Enabled?', str(AUTO_REFUND_INPUT))
         FEE_CHARGEINPUT = inputp('\nFee To Charge For Refunds\n(rather than simply deducting a protocol fee, setting a higher fee discourages abuse and more attentive participation..if left blank default is 500000 lovelace)\n >Fee Charged For Refunds in Lovelace:', str(FEE_CHARGE_INPUT))
-        WATCH_KEY_HASH = tx.get_address_pubkeyhash(CLI_PATH, WATCH_VKEY_PATH)
         if len(SMARTCONTRACT_PATH) == 0:
             SMARTCONTRACT_PATH = log + UNIQUE_NAME + '.plutus'
-        else:
-            SC_ADDR = tx.get_smartcontract_addr(profile_name, SMARTCONTRACT_PATH)
         COLLATERAL = int(COLLATSTRING)
         MIN_WATCH = int(MININPUT)
         if not FEE_CHARGEINPUT:
@@ -773,48 +865,56 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
             AUTO_REFUND = True
         
         # Save to dictionary
-        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'collateral':COLLATERAL,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'watchkeyhash':WATCH_KEY_HASH,'scpath':SMARTCONTRACT_PATH,'scaddr':SC_ADDR,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
+        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'network':NETWORK,'cli_path':CLI_PATH,'api_pre':API_URI_PRE,'api_post':API_URI_POST,'api':API_ID,'collateral':COLLATERAL,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'watchskey':WATCH_SKEY_PATH,'watchvkey':WATCH_VKEY_PATH,'scpath':SMARTCONTRACT_PATH,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'price':PRICE,'tokenqty':TOKEN_QTY,'returnada':RETURN_ADA,'deposit_amnt':DEPOSIT_AMNT,'recurring':RECURRING,'sc_ada_amnt':SC_ADA_AMNT,'wt_ada_amnt':WT_ADA_AMNT, 'auto_refund':AUTO_REFUND, 'fee_to_charge':FEE_CHARGE}
 
     if PROFILE_TYPE == 1:
-        NFT_ADDR = ''
-        MINT_LAST_TIP = '0'
-        MINT_SKEY = input('\nEnter the Minting Wallet Signing Key (.skey) File Path:')
-        MINT_VKEY = input('\nEnter the Minting Wallet Verification Key (.vkey) File Path:')
-        PROFTEMP = [CLI_PATH, NETWORK, MAGIC, '', '', '']
-        MINT_ADDR = tx.get_wallet_addr(PROFTEMP, MINT_VKEY)
-        WATCH_ADDR = MINT_ADDR
-        MINT_POLICY_SKEY = input('\nEnter the Minting Policy Signing Key (.skey) File Path:')
-        MINT_POLICY_VKEY = input('\nEnter the Minting Policy Verification Key (.vkey) File Path:')
-        NFT_ADDR = input('\nNFT or Token Recipient Address\n(or leave blank to mint at swappers address):')
-        RETURN_ADA = input('\nAmount Of Lovelace To Include With Minted Asset UTxO\n(cannot be below protocol limit)\n >Included ADA Amount in Lovelace:')
-        EXPECT_ADA = input('\nExact Amount Of Lovelace To Watch For\n(this is the amount SeaMonk is watching the wallet for, leave blank if watching for any amount over a certain amount)\n >Exact Watch-for Amount in Lovelace:')
-        MININPUT = '0'
-        if not EXPECT_ADA:
-            MININPUT = input('\nMinimum Amount of Lovelace To Watch For\n(minimum to watch for when watching for "any" amount)\n >Watch-for Min Amount in Lovelace:')
+        if reconfig:
+            input('\nThis reconfiguration function will OVERWRITE your current json, svg, and html files! Are you sure you want to proceed? (press any key to continue)...')
+            print('\nContinuing...\n\n')
+        MINT_LAST_TIP = ''
+        AUCTIONINPUT = inputp('\nWhat auction style? (0 or 1 - 0 = Traditional; 1 = Guess the Secret Reserve):', AUCTIONINPUT)
+        AUCTION = int(AUCTIONINPUT)
+        if AUCTION == 1:
+            EXPECT_ADA = input('\nExact Amount Of Lovelace To Watch For\n(this is the amount SeaMonk is watching the wallet for, leave blank if watching for any amount over a certain amount)\n >Exact Watch-for Amount in Lovelace:')
+            MININPUT = '0'
+            if not EXPECT_ADA:
+                MININPUT = input('\nMinimum Amount of Lovelace To Watch For\n(minimum to watch for when watching for "any" amount)\n >Watch-for Min Amount in Lovelace:')
+        if AUCTION == 0:
+            RESERVE = input('\nSet a Reserve Price? (Yes or No):')
+            MININPUT = '0'
+            EXPECT_ADA = ''
+            if RESERVE == 'yes' or RESERVE == 'Yes':
+                MININPUT = input('\nReserve Amount in Lovelace:')
+            BLOCKTIMEINPUT = inputp('\nHours Until Auction Close?\n(default is 24 --Enter the hours number in which to end after the first good bid comes in) >Hours Til Close:', BLOCKTIMEINPUT)
+            BLOCKTIME = (int(BLOCKTIMEINPUT) * 60) * 60
+        MINT_SKEY = inputp('\nEnter the Minting Wallet Signing Key (.skey) File Path:', MINT_SKEY)
+        MINT_VKEY = inputp('\nEnter the Minting Wallet Verification Key (.vkey) File Path:', MINT_VKEY)
+        #MINT_ADDR = tx.get_address_pubkeyhash(CLI_PATH, MINT_VKEY)
+        #input('\nPress any key to verify that the mint address is correct/what you expect given the skey and vkey files: ' + MINT_ADDR)
+        MINT_POLICY_SKEY = inputp('\nEnter the Minting Policy Signing Key (.skey) File Path:', MINT_POLICY_SKEY)
+        MINT_POLICY_VKEY = inputp('\nEnter the Minting Policy Verification Key (.vkey) File Path:', MINT_POLICY_VKEY)
+        POLICY_HASH = tx.get_address_pubkeyhash(CLI_PATH, MINT_POLICY_VKEY)
+        input('\nPress any key to verify that the policy hash is correct/what you expect given the skey and vkey files: ' + POLICY_HASH)
+        NFT_ADDR = inputp('\nMint NFT at Winner Address? (type True or False)\n(recommend: True - otherwise it will mint at your watch/mint address and must be sent manually after auction end):', NFT_ADDR)
+        if NFT_ADDR == 'True' or NFT_ADDR == 'true':
+            NFT_ADDR = True
+        RETURN_ADA = inputp('\nAmount Of Lovelace To Include With Minted Asset UTxO\n(cannot be below protocol limit)\n >Included ADA Amount in Lovelace:', RETURN_ADA_INPUT)
+        
         # feature not yet supported WATCH_ADDR = inputp('\nWatch Address\n(change this ONLY IF watching an alternate address):', MINT_ADDR)
-        MINT_NFT_NAME = input('\nNFT or Token Name:')
-        MINT_NFT_QTY = input('\nQuantity (usually 1 for an NFT):')
+        MINT_NFT_NAME = inputp('\nNFT or Token Name:', MINT_NFT_NAME)
+        MINT_NFT_QTY = inputp('\nQuantity (usually 1 for an NFT):', MINT_NFT_QTY)
         ENTER_TARGET = input('\nUse a Set Target Block Height?\n(Yes or No - Yes = Enter a target slot num; No = Enter a count which will be added to the height at time of minting):')
         if ENTER_TARGET == 'Yes' or ENTER_TARGET == 'yes':
-            SAME_POLICY = input('\nDo you already have a target block height? (Yes or No - Yes if you are trying to mint into the same Policy as a previous mint):')
-            if SAME_POLICY == 'Yes' or SAME_POLICY == 'yes':
-                MINT_TARGET_TIP = input('\nEnter the block height slot number matching the profile you are wishing to mint into:')
-            else:
-                CURRENT_TIP, _, _ = tx.get_tip(PROFTEMP, 0)
-                print('\nAdd slots (about 1 per second) to the current block height, to target a locking timeframe. Current block height:',CURRENT_TIP)
-                SLOTS_TO_ADD = input('\nEnter the Slots to Add to ' + str(CURRENT_TIP) + ':')
-                MINT_TARGET_TIP = int(CURRENT_TIP) + int(SLOTS_TO_ADD)
-                MINT_TARGET_TIP = str(MINT_TARGET_TIP)
-                print('\nYour target locking height for this policy id, will be:',MINT_TARGET_TIP)
+            MINT_TARGET_TIP = inputp('\nEnter the block height slot number matching the profile you are wishing to mint into:', MINT_TARGET_TIP)
         else:
-            MINT_LAST_TIP = input('\nHow Many Slots To Add Until Locked from Minting Height?\n(1 slot ~ 1 second)\nSlots to Add to Block Height at Minting Time:')
-        TOKEN_POLICY_ID = input('\nEnter the Policy ID a Token Used in Fee Refunding and Alt Pay\n(leave empty to not refund fees or offer alt payment):')
-        if len(TOKEN_POLICY_ID) > 0:
-            TOKEN_NAME = input('\nToken Name for Fee Refunding and Alt Pay\n(comes after the dot after the policy ID)\n >Token Name:')
+            MINT_LAST_TIP = inputp('\nHow Many Slots To Add Until Locked from Minting Height?\n(1 slot ~ 1 second)\nSlots to Add to Block Height at Minting Time:', MINT_LAST_TIP)
+        TOKEN_POLICY_ID_INPUT = inputp('\nEnter the Policy ID a Token Used in Fee Refunding and Alt Pay\n(leave empty to not refund fees or offer alt payment):', TOKEN_POLICY_ID_INPUT)
+        if len(TOKEN_POLICY_ID_INPUT) > 0:
+            TOKEN_NAME_INPUT = inputp('\nToken Name for Fee Refunding and Alt Pay\n(comes after the dot after the policy ID)\n >Token Name:', TOKEN_NAME_INPUT)
         else:
-            TOKEN_POLICY_ID = ''
-            TOKEN_NAME = ''
-        COLLATERAL = 2000000
+            TOKEN_POLICY_ID_INPUT = ''
+            TOKEN_NAME_INPUT = ''
+        COLLATERAL = 1
         MIN_WATCH = int(MININPUT)
 
         # process inputs and prepare save data
@@ -864,11 +964,11 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
         MINT_NFT_JSON = out_json
         print('\nYour NFT JSON file has been generated, before proceeding do any manual edits, leaving 000_POLICY_ID_000 in-tact for the next stages of processing. JSON File Located At: ', out_json)
         
-        POLICY_HASH = tx.get_address_pubkeyhash(CLI_PATH, MINT_POLICY_VKEY)
-        NFT_DATA = [MINT_NFT_NAME, MINT_NFT_QTY, MINT_NFT_JSON, MINT_TARGET_TIP, MINT_LAST_TIP, POLICY_HASH]
+        # Setup list for NFT data, final field is policy hash, blank until loading app and processing policy vkey
+        NFT_DATA = [MINT_NFT_NAME, MINT_NFT_QTY, MINT_NFT_JSON, MINT_TARGET_TIP, MINT_LAST_TIP, '']
 
         # Save to dictionary
-        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'nft_minted':NFT_MINTED}
+        rawSettings = {'type':PROFILE_TYPE,'log':log,'cache':cache,'txlog':txlog,'collateral':COLLATERAL,'network':NETWORK,'cli_path':CLI_PATH,'api_pre':API_URI_PRE,'api_post':API_URI_POST,'api':API_ID,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'wallet_vkey':MINT_VKEY,'policy_skey':MINT_POLICY_SKEY,'policy_vkey':MINT_POLICY_VKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID_INPUT,'tokenname':TOKEN_NAME_INPUT,'nft_minted':NFT_MINTED,'auction':AUCTION,'blocktime':BLOCKTIME,'auctionend':AUCTIONEND}
 
     # Save/Update whitelist and profile.json files
     settings_file = 'profile.json'
@@ -914,18 +1014,41 @@ def setup(logroot, profile_name='', reconfig=False, append=False):
     print('\n\n=========================     Profile Saved      =========================\nIf using more than 1 profile, run with this explicit profile with option\n"--profile ' + UNIQUE_NAME + '" e.g. `python3 seamonk.py --profile ' + UNIQUE_NAME + '`.\n\nExiting . . . \n')
     exit(0)
 
-def tx_logger(profile_name, api_id, watch_addr):
+def tx_logger(default_settings, custom_settings):
+    """
+    TX Logger Loop
+    """
     while True:
-        # Begin checking for txs
-        logging_result = tx.log_new_txs(profile_name, api_id, watch_addr)
+        logging_result = tx.log_new_txs(default_settings, custom_settings)
         sleep(2)
 
-def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
-    # Vars shared
-    PROFILE_TYPE = PROFILE['type']
-    API_ID = PROFILE['api']
-    API_URI = PROFILE['api_uri']
-    WATCH_ADDR = PROFILE['watchaddr']
+def tx_processor(DEFAULT_SETTINGS, CUSTOM_SETTINGS):
+    # Defaults Settings
+    PROFILE_NAME = DEFAULT_SETTINGS[0]
+    PROFILE_TYPE = DEFAULT_SETTINGS[1]
+    CLI_PATH = DEFAULT_SETTINGS[2]
+    NETWORK = DEFAULT_SETTINGS[3]
+    MAGIC = DEFAULT_SETTINGS[4]
+    PROFILELOG = DEFAULT_SETTINGS[5]
+    PROFILECACHE = DEFAULT_SETTINGS[6]
+    PROFILETXS = DEFAULT_SETTINGS[7]
+    TESTNET = DEFAULT_SETTINGS[8]
+
+    # Dynamic Custom Settings
+    API_URI = CUSTOM_SETTINGS[0]
+    API_ID = CUSTOM_SETTINGS[1]
+    FEE_TOKEN_STRING = CUSTOM_SETTINGS[2]
+    PROFILE = CUSTOM_SETTINGS[3]
+    MINTSRC = CUSTOM_SETTINGS[4]
+    DELAY_TIME = CUSTOM_SETTINGS[5]
+    WATCH_ADDR = CUSTOM_SETTINGS[6]
+    SMARTCONTRACT_ADDR = CUSTOM_SETTINGS[7]
+    MINT_ADDR = CUSTOM_SETTINGS[8]
+    WATCH_KEY_HASH = CUSTOM_SETTINGS[9]
+
+    # Shared Settings
+    API_URI_PRE = PROFILE['api_pre']
+    API_URI_POST = PROFILE['api_post']
     WLENABLED = PROFILE['wlenabled']
     WHITELIST_ONCE = PROFILE['wlone']
     EXPECT_ADA = PROFILE['expectada']
@@ -934,16 +1057,17 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
     TOKEN_POLICY_ID = PROFILE['tokenid']
     TOKEN_NAME = PROFILE['tokenname']
     COLLATERAL = PROFILE['collateral']
-
-    NETWORK = PROFILE['network']
-    MAGIC = PROFILE['magic']
-    CLI_PATH = PROFILE['cli_path']
+    UPDATEMINTSETTINGS = False
+    END_AUCTION = False
+    AUCTION = ''
+    TALLY = 0
+    REFUND_PENDING = False
+    LOGGER_SETTINGS = [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING]
 
     # Vars profile 0 - SmartContract Swap
     if PROFILE_TYPE == 0:
         WATCH_SKEY_PATH = PROFILE['watchskey']
         WATCH_VKEY_PATH = PROFILE['watchvkey']
-        WATCH_KEY_HASH = PROFILE['watchkeyhash']
         SMARTCONTRACT_PATH = PROFILE['scpath']
         PRICE = PROFILE['price']
         TOKEN_QTY = PROFILE['tokenqty']
@@ -956,22 +1080,20 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
 
         # Calculate the "fingerprint" and finalize other variables
         FINGERPRINT = tx.get_token_identifier(TOKEN_POLICY_ID, TOKEN_NAME)
-        DATUM_HASH  = tx.get_hash_value(PROFILE_NAME, '"{}"'.format(FINGERPRINT)).replace('\n', '')
-        SMARTCONTRACT_ADDR = tx.get_smartcontract_addr(PROFILE_NAME, SMARTCONTRACT_PATH)
+        DATUM_HASH  = tx.get_hash_value(DEFAULT_SETTINGS, '"{}"'.format(FINGERPRINT)).replace('\n', '')
     
     # Vars profile 1 - NFT AutoMinting
     if PROFILE_TYPE == 1:
         NFT_MINTED = PROFILE['nft_minted']
-        MINT_ADDR = PROFILE['mint_addr']
         NFT_ADDR = PROFILE['nft_addr']
         MINT_SKEY = PROFILE['wallet_skey'] # Similar to WATCH_SKEY_PATH
+        MINT_VKEY = PROFILE['wallet_vkey']
         MINT_POLICY_SKEY = PROFILE['policy_skey'] # Additional not used by others
+        MINT_POLICY_VKEY = PROFILE['policy_vkey']
         NFT_DATA = PROFILE['nft_data']
-
-    # Instantiate log and cache folders for profile
-    PROFILELOG = PROFILE['log']
-    PROFILECACHE = PROFILE['cache']
-    PROFILETXS = PROFILE['txlog']
+        AUCTION = PROFILE['auction']
+        BLOCKTIME = PROFILE['blocktime']
+        AUCTIONEND = PROFILE['auctionend']
 
     # Instantiate log for profile
     runlog_file = PROFILELOG + 'run.log'
@@ -1011,8 +1133,8 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
             if not EXPECT_ADA:
                 EXPECT_ADA = 0
             RECIPIENT_ADDR = waddr.strip()
-            tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
-            result = tx.check_for_payment(PROFILE_NAME, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR)
+            tx.log_new_txs(DEFAULT_SETTINGS, LOGGER_SETTINGS)
+            result = tx.check_for_payment(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, EXPECT_ADA, MIN_WATCH, RECIPIENT_ADDR, AUCTION, SMARTCONTRACT_ADDR])
             RESLIST = result.split(',')
             TX_HASH = RESLIST[0].strip()
             RECIPIENT_ADDR = RESLIST[1].strip()
@@ -1021,7 +1143,10 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
             TK_NAME = RESLIST[4].strip()
             STAT = int(RESLIST[5])
             TX_TIME = RESLIST[6]
-            TX_IN_DATA = [TX_HASH, ADA_RECVD, TX_TIME]
+            TALLY = RESLIST[7]
+
+            print('\n Stat:')
+            print(STAT)
 
             # Archive internal TXs and continue
             if STAT == 2:
@@ -1031,7 +1156,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
             if PROFILE_TYPE == 0:
                 if STAT == 0:
                     # Archive TX and continue for now, may need to refund in future for catching small/under limit tx and auto refunding
-                    tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
+                    tx.archive_tx(DEFAULT_SETTINGS, [TX_HASH, ADA_RECVD, TX_TIME])
                     continue
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n===== Matching TX: '+str(result)+' =====\nRunning whitelist for addr/ada-rec: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD))
@@ -1043,14 +1168,14 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                     TOKENS_TOSWAP = int((int(TOKEN_QTY) * ADA_TOSWAP) / 1000000)
 
                 # Get SC Token Balance and Compare
-                tx.get_utxo(PROFILE_NAME, SMARTCONTRACT_ADDR, 'utxo_script_check.json')
+                tx.get_utxo(DEFAULT_SETTINGS, SMARTCONTRACT_ADDR, 'utxo_script_check.json')
                 if isfile(PROFILECACHE+'utxo_script_check.json') is False:
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nERROR: Could not file utxo_script_check.json\n')
                         runlog.close()
                     # Do not archive, continue (keep trying)
                     continue
-                _, _, sc_tkns, _, _ = tx.get_txin(PROFILE_NAME, 'utxo_script_check.json', COLLATERAL, True, DATUM_HASH)
+                _, _, sc_tkns, _, _ = tx.get_txin(DEFAULT_SETTINGS, 'utxo_script_check.json', COLLATERAL, True, DATUM_HASH)
                 sc_bal = 0
                 for token in sc_tkns:
                     if token != TOKEN_POLICY_ID:
@@ -1074,7 +1199,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                                 runlog.write('\nRefunding (tokens exceed): '+str(REFUND_AMNT))
                                 runlog.close()
                             filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-                            tx_refund_a_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, TX_IN_DATA, REFUND_AMNT)
+                            tx_refund_a_hash = withdraw(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, REFUND_AMNT, 0, 0])
 
                             if tx_refund_a_hash != 'error':
                                 with open(runlog_file, 'a') as runlog:
@@ -1111,8 +1236,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                                 runlog.write('Price set as: '+str(CHECK_PRICE))
                                 runlog.close()
                         filePre = 'replenishSC_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-                        tx_rsc_hash = deposit(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, filePre, TX_IN_DATA, TOKENS_TOSWAP, RECIPIENT_ADDR, True)
-
+                        tx_rsc_hash = deposit(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DEPOSIT_AMNT, SC_ADA_AMNT, WT_ADA_AMNT, DATUM_HASH, CHECK_PRICE, COLLATERAL, TOKENS_TOSWAP, RECIPIENT_ADDR, True])
                         if tx_rsc_hash != 'error':
                             with open(runlog_file, 'a') as runlog:
                                 runlog.write('\nRefund hash found, TX completed. Writing to payments.log.')
@@ -1153,7 +1277,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                                 runlog.write('\nSending Refund: '+str(REFUND_AMNT))
                                 runlog.close()
                             filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-                            tx_refund_b_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, filePre, TX_IN_DATA, REFUND_AMNT)
+                            tx_refund_b_hash = withdraw(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, REFUND_AMNT, 0, 0])
 
                             if tx_refund_b_hash != 'error':
                                 with open(runlog_file, 'a') as runlog:
@@ -1167,7 +1291,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                                 continue
                         else:
                             # Archive completed TX
-                            tx.archive_tx(PROFILE_NAME, TX_HASH, ADA_RECVD, TX_TIME)
+                            tx.archive_tx(DEFAULT_SETTINGS, [TX_HASH, ADA_RECVD, TX_TIME])
                         # Record the payment as completed
                         payments_file = PROFILELOG + 'payments.log'
                         with open(payments_file, 'a') as payments_a:
@@ -1181,7 +1305,7 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                     runlog.close()
                 filePre = 'swapTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
                 type_title = 'SmartContract Swap'
-                tx_final_hash = smartcontractswap(PROFILE_NAME, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, str(TOKENS_TOSWAP), RETURN_ADA, PRICE, COLLATERAL, filePre, TX_IN_DATA)
+                tx_final_hash = smartcontractswap(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, WATCH_SKEY_PATH, SMARTCONTRACT_ADDR, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, DATUM_HASH, RECIPIENT_ADDR, RETURN_ADA, PRICE, COLLATERAL, TOKENS_TOSWAP])
 
             if PROFILE_TYPE == 1:
                 if STAT == 0 or NFT_MINTED == True:
@@ -1206,12 +1330,17 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                         else:
                             REFUND_AMNT = ADA_RECVD
                             REFUND_TYPE = 1
+                        # If auction type is Traditional, refund does not include clues
+                        if AUCTION == 0 and REFUND_TYPE == 1:
+                            REFUND_TYPE = 3
+                        if AUCTION == 0 and REFUND_TYPE == 2:
+                            REFUND_TYPE = 4
                     # Process the refund and record payment
                     with open(runlog_file, 'a') as runlog:
                         runlog.write('\nRefunding Bid: '+str(REFUND_AMNT))
                         runlog.close()
                     filePre = 'refundTO' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-                    tx_refund_c_hash = withdraw(PROFILE_NAME, PROFILELOG, PROFILECACHE, MINT_ADDR, MINT_SKEY, '', '', TOKEN_POLICY_ID, TOKEN_NAME, '', RECIPIENT_ADDR, RETURN_ADA, '', COLLATERAL, filePre, TX_IN_DATA, REFUND_AMNT, REFUND_TYPE, MAGIC_PRICE)
+                    tx_refund_c_hash = withdraw(DEFAULT_SETTINGS, [API_URI, API_ID, MINT_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, MINT_SKEY, '', '', TOKEN_POLICY_ID, TOKEN_NAME, '', RECIPIENT_ADDR, RETURN_ADA, '', COLLATERAL, REFUND_AMNT, REFUND_TYPE, MAGIC_PRICE])
 
                     # Record the payment as completed, leave whitelist untouched since not a valid swap tx
                     if tx_refund_c_hash != 'error':
@@ -1229,38 +1358,96 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                         # Do not archive in this case, just continue and try again
                     continue
 
-                with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nFound Good NFT TX! Process this TX Mint')
-                    runlog.close()
-                filePre = 'Mint_' + NFT_DATA[1] + '-' + NFT_DATA[0] + '_to' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
-                type_title = 'NFT AutoMinting'
-                if NFT_ADDR != MINT_ADDR and NFT_ADDR != WATCH_ADDR and len(NFT_ADDR) == 0:
-                    NFT_ADDR = RECIPIENT_ADDR
-                with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nMinting to address: '+NFT_ADDR+' | json_file:'+NFT_DATA[2]+' | policy_file:'+NFT_DATA[5] + ' | name:' + NFT_DATA[0] + ' | lock:' + NFT_DATA[3])
-                    runlog.close()
-                NFT_MINTED = True
-                PROFILE['nft_minted'] = NFT_MINTED
+                # Check auction time and status
 
-                # Update
-                updateMinting = {'type':PROFILE_TYPE,'log':PROFILELOG,'cache':PROFILECACHE,'txlog':PROFILETXS,'collateral':COLLATERAL,'network':NETWORK,'magic':MAGIC,'cli_path':CLI_PATH,'api_uri':API_URI,'api':API_ID,'watchaddr':WATCH_ADDR,'scaddr':MINT_ADDR,'expectada':EXPECT_ADA,'min_watch':MIN_WATCH,'wlenabled':WLENABLED,'wlone':WHITELIST_ONCE,'mint_addr':MINT_ADDR,'nft_addr':NFT_ADDR,'wallet_skey':MINT_SKEY,'policy_skey':MINT_POLICY_SKEY,'returnada':RETURN_ADA,'nft_data':NFT_DATA,'tokenid':TOKEN_POLICY_ID,'tokenname':TOKEN_NAME,'nft_minted':NFT_MINTED}
+                # If Auction is Traditional
+                if AUCTION == 0:
+                    # If first good bid, set end slot and update settings
+                    if AUCTIONEND == 0:
+                        _, AUCTIONEND, _ = tx.get_tip(DEFAULT_SETTINGS, BLOCKTIME)
+                        AUCTIONEND = int(AUCTIONEND)
+                        # Update settings with new endtime set
+                        UPDATEMINTSETTINGS = True
+                    else:
+                        AUCTION_NOW, _, _ = tx.get_tip(DEFAULT_SETTINGS, 0)
+                        auction_diff = int(AUCTIONEND) - int(AUCTION_NOW)
+                        if auction_diff <= 0:
+                            # Setup finalization log file
+                            final_file = PROFILELOG + 'final.log'
+                            is_final_log = os.path.isfile(final_file)
+                            if not is_final_log:
+                                try:
+                                    open(final_file, 'x')
+                                    with open(final_file, 'a') as final_header:
+                                        final_header.write('FromAddr,' + 'Amount,' + 'Action\n')
+                                        final_header.close()
+                                except OSError:
+                                    pass
+                            UPDATEMINTSETTINGS = True
+                            END_AUCTION = True
+                            REFUND_PENDING = True
+                            NFT_MINTED = True
+                            PROFILE['nft_minted'] = NFT_MINTED
+                            
+                            # Find Winning Bidder
+                            highest_addr, highest_tally = tx.process_tally(DEFAULT_SETTINGS)
+                            if highest_tally > TALLY:
+                                RECIPIENT_ADDR = highest_addr
+                                # Set in data to skip archiving on tx submit
+                                TX_HASH, ADA_RECVD, TX_TIME = 'mint', highest_tally, strftime("%Y-%m-%d_%H-%M-%S", gmtime())
+                                # TODO: check the order of above line and below
+                                # Archive this bid tx now, before finalizing winner
+                                tx.archive_tx(DEFAULT_SETTINGS, [TX_HASH, ADA_RECVD, TX_TIME])
 
-                # Save/Update whitelist and profile.json files
-                UpdateSetFile = 'profile.json'
-                update_minting = json.load(open(UpdateSetFile, 'r'))
-                update_minting[PROFILE_NAME] = updateMinting
-                jsonOUTSettings = json.dumps(update_minting)
-                with open(UpdateSetFile, 'w') as update_s:
-                    update_s.write(jsonOUTSettings)
-                    update_s.close()
+                # If Auction is Guess
+                if AUCTION == 1:
+                    UPDATEMINTSETTINGS = True
+                    END_AUCTION = True
+                    NFT_MINTED = True
+                    PROFILE['nft_minted'] = NFT_MINTED
 
-                with open(runlog_file, 'a') as runlog:
-                    runlog.write('\nSet minted flag to True')
-                    runlog.close()
-                tx_final_hash = mint(PROFILE_NAME, MINTSRC, PROFILELOG, PROFILECACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, RETURN_ADA, NFT_DATA, filePre, TX_IN_DATA)
+                if UPDATEMINTSETTINGS:
+                    # Open and Update
+                    UpdateSetFile = 'profile.json'
+                    update_minting = json.load(open(UpdateSetFile, 'r'))
+                    LOADED = update_minting[PROFILE_NAME]
+                    updateMinting = {'type':LOADED['type'],'log':LOADED['log'],'cache':LOADED['cache'],'txlog':LOADED['txlog'],'collateral':LOADED['collateral'],'network':LOADED['network'],'cli_path':LOADED['cli_path'],'api_pre':LOADED['api_pre'],'api_post':LOADED['api_post'],'api':LOADED['api'],'expectada':LOADED['expectada'],'min_watch':LOADED['min_watch'],'wlenabled':LOADED['wlenabled'],'wlone':LOADED['wlone'],'nft_addr':LOADED['nft_addr'],'wallet_skey':LOADED['wallet_skey'],'wallet_vkey':LOADED['wallet_vkey'],'policy_skey':LOADED['policy_skey'],'policy_vkey':LOADED['policy_vkey'],'returnada':LOADED['returnada'],'nft_data':LOADED['nft_data'],'tokenid':LOADED['tokenid'],'tokenname':LOADED['tokenname'],'nft_minted':NFT_MINTED,'auction':LOADED['auction'],'blocktime':LOADED['blocktime'],'auctionend':AUCTIONEND}
+
+                    # Save/Update whitelist and profile.json files
+                    update_minting[PROFILE_NAME] = updateMinting
+                    jsonOUTSettings = json.dumps(update_minting)
+                    with open(UpdateSetFile, 'w') as update_s:
+                        update_s.write(jsonOUTSettings)
+                        update_s.close()
+                    UPDATEMINTSETTINGS = False
+                
+                if END_AUCTION:
+                    with open(runlog_file, 'a') as runlog:
+                        runlog.write('\nFound Good NFT TX! Process this TX Mint')
+                        runlog.close()
+                    filePre = 'Mint_' + NFT_DATA[1] + '-' + NFT_DATA[0] + '_to' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
+                    type_title = 'NFT AutoMinting'
+                    if NFT_ADDR:
+                        MINT_AT = RECIPIENT_ADDR
+                    else:
+                        MINT_AT = MINT_ADDR
+                    with open(runlog_file, 'a') as runlog:
+                        runlog.write('\nSet minted flag to True')
+                        runlog.write('\nMinting to address: '+MINT_AT+' | json_file:'+NFT_DATA[2]+' | policy_file:'+NFT_DATA[5] + ' | name:' + NFT_DATA[0] + ' | lock:' + NFT_DATA[3])
+                        runlog.close()
+                    tx_final_hash = mint(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, RETURN_ADA, MINTSRC, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, MINT_AT, NFT_DATA, False])
+                else:
+                    with open(runlog_file, 'a') as runlog:
+                        runlog.write('\nFound Good Bid TX! Record Bid in Payments and in Pending logs')
+                        runlog.close()
+                    filePre = 'BidPlaced_' + NFT_DATA[1] + '-' + NFT_DATA[0] + '_to' + RECIPIENT_ADDR + '_' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_'
+                    type_title = 'Bid'
+                    tx_final_hash = 'bid'
+                    # Archive the bid tx received
+                    tx.archive_tx(DEFAULT_SETTINGS, [TX_HASH, ADA_RECVD, TX_TIME])
 
             # With either type watch for TX and record payment
-            if tx_final_hash != 'error':
+            if tx_final_hash != 'error' or tx_final_hash == 'bid':
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n' + type_title + ' TX Hash Found: '+tx_final_hash)
                     runlog.close()
@@ -1282,6 +1469,39 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
                                 write_file.write(line)
                     read_file.close()
                     write_file.close()
+                # Loop and process all non-winning bid tallys if auction ended
+                if END_AUCTION and REFUND_PENDING:
+                    with open(final_file, 'r') as final_r:
+                        readfi = 0
+                        last_tally = 0
+                        tally = amount
+
+                        # Iterate over file lines
+                        for final_line in final_r:
+                            if readfi == 0:
+                                readfi += 1
+                                continue
+                            readfi += 1
+                            fl = final_line.split(',')
+                            if fl[2] == 'won':
+                                continue
+                            TX_HASH, ADA_RECVD, TX_TIME = 'none', 0, 0
+                            REFUND_ADDR = fl[0]
+                            REFUND_AMT = fl[1]
+                            MAGIC_PRICE = 0
+                            # TODO: Refund_type for these cumulative refunds!
+                            tx_end_refund_hash = withdraw(DEFAULT_SETTINGS, [API_URI, API_ID, MINT_ADDR, FEE_TOKEN_STRING, filePre, TX_HASH, ADA_RECVD, TX_TIME, MINT_SKEY, '', '', TOKEN_POLICY_ID, TOKEN_NAME, '', REFUND_ADDR, RETURN_ADA, '', COLLATERAL, REFUND_AMT, REFUND_TYPE, MAGIC_PRICE])
+
+                            # Record the payment as completed, leave whitelist untouched since not a valid swap tx
+                            if tx_end_refund_hash != 'error':
+                                with open(runlog_file, 'a') as runlog:
+                                    runlog.write('\nRefund completed for:' + REFUND_ADDR + ' in amount of ' + REFUND_AMT)
+                                    runlog.close()
+                            else:
+                                with open(runlog_file, 'a') as runlog:
+                                    runlog.write('\nRefund TX attempted, error returned by withdraw for address and amount:' + REFUND_ADDR + ' | ' + REFUND_AMT)
+                                    runlog.close()
+                            continue
             else:
                 with open(runlog_file, 'a') as runlog:
                     runlog.write('\n' + type_title + ' Failed: '+RECIPIENT_ADDR+' | '+str(ADA_RECVD))
@@ -1290,27 +1510,31 @@ def tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME):
         whitelist_r.close()
 
         # Check again and sleep program for NN seconds
-        tx.log_new_txs(PROFILE_NAME, API_ID, WATCH_ADDR)
+        tx.log_new_txs(DEFAULT_SETTINGS, LOGGER_SETTINGS)
         sleep(DELAY_TIME)
 
 if __name__ == "__main__":
     # Set default program mode
+    DELAY_TIME = 30
     running = True
 
     # Get user options
     arguments = argv[1:]
-    shortopts= "svo"
-    longopts = ["profile=","option="]
+    shortopts= "pot"
+    longopts = ["profile=","option=","testnet="]
 
     # Setting behaviour for options
     PROFILE_PASSED = ''
     OPTION_PASSED = ''
+    TESTNET_OVERRIDE = ''
     options, args = getopt.getopt(arguments, shortopts,longopts)
     for opt, val in options: 
         if opt in ("-p", "--profile"):
             PROFILE_PASSED = str(val)
         elif opt in ("-o", "--option"):
             OPTION_PASSED = str(val)
+        elif opt in ("-t", "--testnet"):
+            TESTNET_OVERRIDE = str(val)
 
     # Setup Temp Directory (try to)
     scptroot = os.path.realpath(os.path.dirname(__file__))
@@ -1337,7 +1561,9 @@ if __name__ == "__main__":
 
     # Pre-Profile Functions (such as manual minting)
     if len(OPTION_PASSED) > 0:
+        # TODO: Update with new vars
         if OPTION_PASSED == 'mint':
+            TESTNET = False
             MINT_NETWORK = 'mainnet'
             MINT_ADDR = 'none'
             MINT_TARGET_TIP = '0'
@@ -1351,6 +1577,7 @@ if __name__ == "__main__":
                 MINT_CLI = 'cardano-cli'
             MINT_NETWORK = input('\nEnter the Network Type (mainnet or testnet):')
             if MINT_NETWORK == 'testnet':
+                TESTNET = True
                 MINT_MAGIC = input('\nTestnet Magic Number:')
                 MINT_NETWORK = MINT_NETWORK + '-magic'
             MINT_SKEY = input('\nEnter the Minting Wallet Signing Key (.skey) File Path:')
@@ -1468,14 +1695,14 @@ if __name__ == "__main__":
 
             POLICY_HASH = tx.get_address_pubkeyhash(MINT_CLI, MINT_POLICY_VKEY)
             NFT_DATA = [MINT_NFT_NAME, MINT_NFT_QTY, MINT_NFT_JSON, MINT_TARGET_TIP, MINT_LAST_TIP, POLICY_HASH]
-            PROFILE = [MINT_CLI, MINT_NETWORK, MINT_MAGIC, LOG, TXLOG, CACHE]
-            MINT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
+            DEFAULT_SETTINGS = ['manual-mintName', 'notype', MINT_CLI, MINT_NETWORK, MINT_MAGIC, LOG, CACHE, TXLOG, TESTNET]
+            MINT_ADDR = tx.get_wallet_addr(DEFAULT_SETTINGS, MINT_VKEY)
             if len(NFT_ADDR) == 0:
-                NFT_ADDR = tx.get_wallet_addr(PROFILE, MINT_VKEY)
+                NFT_ADDR = tx.get_wallet_addr(DEFAULT_SETTINGS, MINT_VKEY)
             print('\nMAKE CERTAIN YOU HAVE DONE ANY AND ALL MANUAL CHANGES TO THIS NFT META IN THE JSON FILE BEFORE CONTINUING!')
             input('Press any key when ready, to continue...MUST HAVE OVER 5 ADA AT MINTING ADDR')
             input('Are you ABSOLUTELY CERTAIN your json file is ready? You can copy/paste it into pool.pm/test/metadata to make sure!...if you are sure, press any key')
-            minted_hash, policyID, policy_tip = mint(PROFILE, MINTSRC, LOG, CACHE, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, '5000000', NFT_DATA, 'mint-' + MINT_NFT_NAME, ['mint','',''], True)
+            minted_hash, policyID, policy_tip = mint(DEFAULT_SETTINGS, ['', '', MINT_ADDR, '', 'mint-' + MINT_NFT_NAME, 'mint', '', '', '5000000', MINTSRC, MINT_ADDR, MINT_SKEY, MINT_POLICY_SKEY, NFT_ADDR, NFT_DATA, True])
             print('\nCompleted - (TX Hash return is ' + minted_hash + ')')
             print('\nIMPORTANT: Take note of the following Policy ID and Policy Locking Slot Number. If you will be minting more NFTs to this same Policy ID, you will need to enter the following Policy Locking Slot Number when minting another NFT into this policy.')
             print('\n    > Asset Name: ', policyID + '.' + MINT_NFT_NAME)
@@ -1500,59 +1727,106 @@ if __name__ == "__main__":
     if len(PROFILE_NAME) == 0:
         PROFILE_NAME = list(load_profile.keys())[0]
     PROFILE = load_profile[PROFILE_NAME]
+
+    # Load default/overridable settings
+    CLI_PATH = PROFILE['cli_path']
+    TESTNET = False
+    NETWORK = PROFILE['network']
     API_ID = PROFILE['api']
-    WATCH_ADDR = PROFILE['watchaddr']
+    API_NET = 'mainnet'
+    TOKEN_POLICY_ID = PROFILE['tokenid']
+    TOKEN_NAME = PROFILE['tokenname']
+    FEE_TOKEN_STRING = ''
+
+    # Update any overrides
+    if len(TESTNET_OVERRIDE) > 0:
+        OR = TESTNET_OVERRIDE.split(',')
+        print('\ninput:')
+        print(TESTNET_OVERRIDE)
+        if len(OR[0]) > 0 and len(OR[1]) > 0:
+            print('network override values set')
+            TESTNET = True
+            NETWORK = PROFILE['network'] = 'testnet-magic'
+            MAGIC = OR[0]
+            API_ID = PROFILE['api'] = OR[1]
+            API_NET = 'testnet'
+        else:
+            print('\nError! Missing magic number or API ID, both are required...exiting...')
+            exit(0)
+        if len(OR[2]) > 0:
+            print('token override value set')
+            TOKEN = OR[2].split('.')
+            TOKEN_POLICY_ID = PROFILE['tokenid'] = TOKEN[0]
+            TOKEN_NAME = PROFILE['tokenname'] = TOKEN[1]
+        if len(OR[3]) > 0:
+            print('block override value set')
+            SLOT_OVERRIDE = OR[3]
+
+    # Load Settings
+    API_URI = PROFILE['api_pre'] + API_NET + PROFILE['api_post']
     PROFILELOG = PROFILE['log']
     PROFILECACHE = PROFILE['cache']
+    PROFILETXLOG = PROFILE['txlog']
     PROFILE_TYPE = PROFILE['type']
-    TOKEN_POLICY_ID = PROFILE['tokenid']
     EXPECT_ADA = PROFILE['expectada']
     COLLATERAL = PROFILE['collateral']
-
     if len(OPTION_PASSED) > 0:
         if OPTION_PASSED == 'reconfigure':
             setup(LOGROOT, PROFILE_NAME, True)
-
         elif OPTION_PASSED == 'new_profile':
             setup(LOGROOT, PROFILE_NAME, False, True)
-
         elif OPTION_PASSED == 'get_transactions':
             running = False
         else:
             print('\nOption not recognized, exiting...')
             exit(0)
+    
+    # Populate main default settings
+    DEFAULT_SETTINGS = [PROFILE_NAME, PROFILE_TYPE, CLI_PATH, NETWORK, MAGIC, PROFILELOG, PROFILECACHE, PROFILETXLOG, TESTNET]
 
+    # If profile type is SC swap
     if PROFILE_TYPE == 0:
         # Vars
         WATCH_SKEY_PATH = PROFILE['watchskey']
         WATCH_VKEY_PATH = PROFILE['watchvkey']
-        WATCH_KEY_HASH = PROFILE['watchkeyhash']
         SMARTCONTRACT_PATH = PROFILE['scpath']
-        TOKEN_NAME = PROFILE['tokenname']
         PRICE = PROFILE['price']
         
         # Check for smartcontract file and prompt to create if not found
         sc_file = SMARTCONTRACT_PATH
         is_sc_file = os.path.isfile(sc_file)
+        SC_SETTINGS = [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, '', 'none', '', '', APPROOT, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE]
         if not is_sc_file:
-            create_smartcontract(PROFILE_NAME, APPROOT, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
+            create_smartcontract(DEFAULT_SETTINGS, SC_SETTINGS)
+        
+        # Get dynamic data
+        WATCH_ADDR = tx.get_wallet_addr(DEFAULT_SETTINGS, WATCH_VKEY_PATH)
+        WATCH_KEY_HASH = tx.get_address_pubkeyhash(CLI_PATH, WATCH_VKEY_PATH)
+        SC_ADDR = tx.get_smartcontract_addr(DEFAULT_SETTINGS, SMARTCONTRACT_PATH)
+        MINT_ADDR = ''
 
+        # Get custom options relevant to this profile type
         if len(OPTION_PASSED) > 1 and len(API_ID) > 1 and len(WATCH_ADDR) > 1:
             if OPTION_PASSED == 'create_smartcontract':
-                create_smartcontract(PROFILE_NAME, APPROOT, SMARTCONTRACT_PATH, SRC, WATCH_KEY_HASH, PRICE)
-
+                create_smartcontract(DEFAULT_SETTINGS, SC_SETTINGS)
             if OPTION_PASSED == 'deposit':
                 CHECK_PRICE = 0
                 if EXPECT_ADA != PRICE:
                     CHECK_PRICE = int(PRICE)
                     print('\nTo check if price amount in wallet: ' + str(CHECK_PRICE))
-                start_deposit(PROFILE_NAME, API_ID, PROFILELOG, PROFILECACHE, WATCH_ADDR, WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL)
-        
-            if OPTION_PASSED == 'replenish':
-                # May be unneeded
-                print('\nOption not yet enabled')
-                exit(0)
-    
+                DEPOSIT_SETTINGS = [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING, '', 'none', '', '', WATCH_SKEY_PATH, WATCH_VKEY_PATH, WATCH_KEY_HASH, SMARTCONTRACT_PATH, TOKEN_POLICY_ID, TOKEN_NAME, CHECK_PRICE, COLLATERAL]
+                start_deposit(DEFAULT_SETTINGS, DEPOSIT_SETTINGS)
+
+    # If profile type is auction/minting
+    if PROFILE_TYPE == 1:
+        if len(TOKEN_POLICY_ID) > 1:
+            FEE_TOKEN_STRING = TOKEN_POLICY_ID + '.' + TOKEN_NAME
+        MINT_ADDR = tx.get_wallet_addr(DEFAULT_SETTINGS, PROFILE['wallet_vkey'])
+        WATCH_ADDR = MINT_ADDR
+        SC_ADDR = MINT_ADDR
+        WATCH_KEY_HASH = ''
+        PROFILE['nft_data'][5] = tx.get_address_pubkeyhash(CLI_PATH, PROFILE['policy_vkey'])
+
     # Start get_transactions thread
     if running == False:
         # Instantiate log for profile
@@ -1567,10 +1841,15 @@ if __name__ == "__main__":
             time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
             runlog.write('\n===============================\n          Begin logging transactions at: ' + time_now + '\n===============================\n')
             runlog.close()
-        #Thread(target=lambda: tx_logger(PROFILE_NAME, API_ID, WATCH_ADDR)).start()
-        tx_logger(PROFILE_NAME, API_ID, WATCH_ADDR)
+        tx_logger(DEFAULT_SETTINGS, [API_URI, API_ID, WATCH_ADDR, FEE_TOKEN_STRING])
 
     # Start main thread
-    DELAY_TIME = 30
     if running == True:
-        tx_processor(MINTSRC, PROFILE_NAME, PROFILE, DELAY_TIME)
+        print('\nProfile in mem:')
+        print(PROFILE)
+        print('\nOther non PROFILE specific in mem:')
+        print([API_URI, API_ID, FEE_TOKEN_STRING, MINTSRC, DELAY_TIME])
+        print('\nDefault Settings in mem:')
+        print(DEFAULT_SETTINGS)
+        #exit(0)
+        tx_processor(DEFAULT_SETTINGS, [API_URI, API_ID, FEE_TOKEN_STRING, PROFILE, MINTSRC, DELAY_TIME, WATCH_ADDR, SC_ADDR, MINT_ADDR, WATCH_KEY_HASH])
