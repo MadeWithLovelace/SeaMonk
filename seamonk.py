@@ -763,7 +763,7 @@ def setup(logroot, profile_name='', reconfig = False, append = False):
     if not reconfig:
         print('\n    Choose profile type by entering the cooresponding number:')
         print('      0 = SmartContract Swap')
-        print('      1 = Auto-Minting Swap')
+        print('      1 = Blockchain Auction')
         RESPONSE = input('\nEnter the option number:')
         PROFILE_TYPE = int(RESPONSE)
         UNIQUE_NAME = input('\nEnter A Unique Profile Name For This Profile\n(no spaces, e.g. CypherMonk_NFT_Sale)\n >Unique Name:')
@@ -782,10 +782,18 @@ def setup(logroot, profile_name='', reconfig = False, append = False):
     print('need be added and the entire wallet will be whitelisted.\n\n')
     print('Default for all profiles is mainnet, if you want to test a profile first')
     print('you can add the option with various optional values:')
-    print('     `--testnet MAGICNUM APIID TARGETSLOT TOKENPOLICY.TOKENNAME`')
+    print('     `--testnet MAGICNUM,APIID,TOKENPOLICY.TOKENNAME,TARGETSLOT`')
     print('where MAGICNUM is the testnet magic number, APIID is your testnet-specific')
     print('Blockfrost API ID, TARGETSLOT is an optional block slot height override,')
     print('and TOKENPOLICY.TOKENNAME is an override for an alt token if you set one.')
+    print('\nIf leaving out one of the overrides, such as TARGETSLOT or the token, ')
+    print('be sure to still include all the commas in..e.g. `--testnet MAGICNUM,APIID,,')
+    print('\n\nFOR BEST RESULTS: All settings should be for mainnet and your folder')
+    print('structure and file naming should match that of mainnet, this way you can')
+    print('stage with testnet overrides and when all is working, simply copy your')
+    print('working profile to your mainnet environment.  The location of SeaMonk')
+    print('is dynamic, so only the locations set during this setup are important')
+    print('to keep consistent between staging and live.')
 
     # Setup profile-specific cache and log folders
     log = os.path.join(os.path.join(logroot, UNIQUE_NAME), '')
@@ -872,7 +880,7 @@ def setup(logroot, profile_name='', reconfig = False, append = False):
             input('\nThis reconfiguration function will OVERWRITE your current json, svg, and html files! Are you sure you want to proceed? (press any key to continue)...')
             print('\nContinuing...\n\n')
         MINT_LAST_TIP = ''
-        AUCTIONINPUT = inputp('\nWhat auction style? (0 or 1 - 0 = Traditional; 1 = Guess the Secret Reserve):', AUCTIONINPUT)
+        AUCTIONINPUT = inputp('\nAuction style 0 = Traditional, Highest Cumulative Bid Wins in Timeframe; 1 = Guess the Secret Reserve:', AUCTIONINPUT)
         AUCTION = int(AUCTIONINPUT)
         if AUCTION == 1:
             EXPECT_ADA = input('\nExact Amount Of Lovelace To Watch For\n(this is the amount SeaMonk is watching the wallet for, leave blank if watching for any amount over a certain amount)\n >Exact Watch-for Amount in Lovelace:')
@@ -908,9 +916,9 @@ def setup(logroot, profile_name='', reconfig = False, append = False):
             MINT_TARGET_TIP = inputp('\nEnter the block height slot number matching the profile you are wishing to mint into:', MINT_TARGET_TIP)
         else:
             MINT_LAST_TIP = inputp('\nHow Many Slots To Add Until Locked from Minting Height?\n(1 slot ~ 1 second)\nSlots to Add to Block Height at Minting Time:', MINT_LAST_TIP)
-        TOKEN_POLICY_ID_INPUT = inputp('\nEnter the Policy ID a Token Used in Fee Refunding and Alt Pay\n(leave empty to not refund fees or offer alt payment):', TOKEN_POLICY_ID_INPUT)
+        TOKEN_POLICY_ID_INPUT = inputp('\nEnter the Mainnet Policy ID of a Token To Be Used in Fee Refunding and Alt Pay\n(leave empty to not refund fees or offer alt payment):', TOKEN_POLICY_ID_INPUT)
         if len(TOKEN_POLICY_ID_INPUT) > 0:
-            TOKEN_NAME_INPUT = inputp('\nToken Name for Fee Refunding and Alt Pay\n(comes after the dot after the policy ID)\n >Token Name:', TOKEN_NAME_INPUT)
+            TOKEN_NAME_INPUT = inputp('\nMainnet Token Name for Fee Refunding and Alt Pay\n(comes after the dot after the policy ID)\n >Token Name:', TOKEN_NAME_INPUT)
         else:
             TOKEN_POLICY_ID_INPUT = ''
             TOKEN_NAME_INPUT = ''
