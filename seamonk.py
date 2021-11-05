@@ -1768,7 +1768,7 @@ if __name__ == "__main__":
             TOKEN_NAME = PROFILE['tokenname'] = TOKEN[1]
         if len(OR[3]) > 0:
             print('block override value set')
-            SLOT_OVERRIDE = OR[3]
+            PROFILE['nft_data'][3] = OR[3]
 
     # Load Settings
     API_URI = PROFILE['api_pre'] + API_NET + PROFILE['api_post']
