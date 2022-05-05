@@ -1,4 +1,4 @@
-# SeaMonk
+# SeaMonk !Notice: This repo is not maintained and is out of date
 A gateway application which facilitates a simple->complex transaction incorporating a Smart Contract on the Cardano blockchain.
 
 SeaMonk makes it possible for a user to send any amount of ADA which is either expected as an exact amount, any amount, or an amount over a minimum...and perform a complex transaction as a result, such as a Token Swap in either a sale, an exchange 1-sided dex, a simple OTC trade, or a giveaway or similar...in all cases utilizing a smart contract but without the need for the user to input datum, redeemer, or include the plutus script in a tx.  
